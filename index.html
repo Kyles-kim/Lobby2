@@ -104,7 +104,7 @@ main{overflow-y:auto;padding:12px 16px 24px;-webkit-overflow-scrolling:touch;scr
   box-shadow:inset 0 10px 18px rgba(0,0,0,.45)}
 .stage>*{position:relative;z-index:1}
 .greet{font-size:25px;line-height:1.4;color:#EBCDA4;text-align:center;margin-top:10px;text-shadow:0 0 18px rgba(221,169,110,.35)}
-.orb-wrap{position:relative;width:100%;height:238px;display:grid;place-items:center;margin:2px 0}
+.orb-wrap{position:relative;width:100%;height:290px;display:grid;place-items:center;margin:2px 0}
 .wave{position:absolute;left:-16px;right:-16px;top:0;height:100%;width:calc(100% + 32px);z-index:0;pointer-events:none}
 .mic{position:relative;z-index:1;width:188px;height:188px;border-radius:50%;border:0;display:grid;place-items:center;transition:transform .15s,box-shadow .3s;
   background:radial-gradient(circle at 34% 24%,rgba(255,236,208,.95) 0%,rgba(214,160,108,.9) 16%,rgba(122,78,44,.92) 46%,rgba(46,28,16,.96) 78%,#1A0F08 100%);
@@ -119,16 +119,19 @@ main{overflow-y:auto;padding:12px 16px 24px;-webkit-overflow-scrolling:touch;scr
 @media (prefers-reduced-motion:reduce){.mic.on::after{animation:none;opacity:.7}}
 /* AI 얼굴: 사진(icons/face.webp)을 얼굴 중심으로 잘라 넣고, 눈꺼풀·입을 그 위에 덧그려 움직인다.
    듣는 동안(.on)은 눈을 감고 좌우를 두리번거리고, 말하는 동안(body.speaking)은 대화 탭 얼굴의 입이 움직인다. */
-.mic.face{width:214px;height:214px;background:#16222A;
-  box-shadow:inset 0 0 0 2px rgba(241,211,168,.6),0 0 0 1px rgba(0,0,0,.6),0 0 46px rgba(102,220,234,.28),0 0 30px rgba(221,169,110,.35),0 18px 34px rgba(0,0,0,.6)}
-.mic.face::before{display:none}
-.mic.face.on{box-shadow:inset 0 0 0 2px #FFE9C8,0 0 0 1px rgba(0,0,0,.6),0 0 30px 6px rgba(102,220,234,.6),0 0 80px 18px rgba(221,169,110,.45),0 18px 34px rgba(0,0,0,.6)}
-.head{position:absolute;inset:2px;border-radius:50%;overflow:hidden;perspective:520px;pointer-events:none}
-.fc{position:absolute;inset:-5%;background:url(icons/face.webp) 50% 22%/152.3% no-repeat;transform-origin:50% 62%;transition:transform .5s}
-.lid{position:absolute;top:46.1%;width:19%;height:10%;border-radius:50%;transform:translate(-50%,-50%) scaleY(0);transition:transform .22s ease-in;
-  background:radial-gradient(ellipse 70% 80% at 50% 28%,#8E9498 0%,#70777C 55%,#555C62 100%);box-shadow:inset 0 -2px 2px rgba(16,22,26,.75),0 1px 2px rgba(16,22,26,.5)}
-.lid.l{left:33.3%} .lid.r{left:66.7%}
-.mouth{position:absolute;left:50%;top:79.5%;width:19%;height:7.5%;border-radius:50%;transform:translate(-50%,-50%) scaleY(.2);opacity:0;transition:opacity .15s;
+.mic.face{width:176px;height:280px;border-radius:0;background:none;box-shadow:none}
+.mic.face::before,.mic.face::after{display:none}
+.mic.face.on{box-shadow:none}
+/* 테두리 없이 머리·목 윤곽대로만 보이게 한다: 사진에서 머리 부분(165,22 ~ 505,562)을 쓰고, 윤곽 모양의 마스크로 배경을 걷어 낸다 */
+.head{position:absolute;inset:0;perspective:560px;pointer-events:none;filter:drop-shadow(0 0 14px rgba(102,220,234,.38)) drop-shadow(0 14px 16px rgba(0,0,0,.55));transition:filter .3s}
+.mic.face.on .head{filter:drop-shadow(0 0 20px rgba(102,220,234,.85)) drop-shadow(0 0 34px rgba(221,169,110,.5)) drop-shadow(0 14px 16px rgba(0,0,0,.55))}
+.fc{position:absolute;inset:0;background:url(icons/face.webp) 50% 16.92%/197.06% auto no-repeat;transform-origin:50% 82%;transition:transform .5s;
+  -webkit-mask:var(--head-mask) center/100% 100% no-repeat;mask:var(--head-mask) center/100% 100% no-repeat}
+:root{--head-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='165 22 340 540' preserveAspectRatio='none'%3E%3Cfilter id='b' x='-10%25' y='-10%25' width='120%25' height='120%25'%3E%3CfeGaussianBlur stdDeviation='2.5'/%3E%3C/filter%3E%3Cg filter='url(%23b)' fill='%23fff'%3E%3Cpath d='M335 42 C240 42 188 110 188 205 C188 290 207 370 242 425 C264 458 296 485 335 487 C374 485 406 458 428 425 C463 370 482 290 482 205 C482 110 430 42 335 42 Z'/%3E%3Cpath d='M264 430 C264 485 256 505 224 524 C252 550 418 550 446 524 C414 505 406 485 406 430 Z'/%3E%3C/g%3E%3C/svg%3E")}
+.lid{position:absolute;top:42.9%;width:21.5%;height:6.6%;border-radius:50%;transform:translate(-50%,-50%) scaleY(0);transition:transform .22s ease-in;
+  background:radial-gradient(ellipse 75% 90% at 50% 20%,#868C91 0%,#6C7378 50%,#50575D 100%);box-shadow:inset 0 -2px 2px rgba(14,20,24,.8),0 0 3px 1px rgba(80,87,93,.9)}
+.lid.l{left:28.4%} .lid.r{left:71.6%}
+.mouth{position:absolute;left:50%;top:70.1%;width:24.6%;height:6.1%;border-radius:50%;transform:translate(-50%,-50%) scaleY(.2);opacity:0;transition:opacity .15s;
   background:radial-gradient(ellipse at 50% 35%,#05090B 0%,#0E161A 60%,#2A3338 100%);box-shadow:inset 0 2px 3px rgba(0,0,0,.9),0 0 3px rgba(40,48,54,.9)}
 .mic.face.on .lid{transform:translate(-50%,-50%) scaleY(1)}
 .mic.face.on .fc{animation:look 3.6s ease-in-out infinite}
