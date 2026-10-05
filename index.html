@@ -35,7 +35,9 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{height:100%}
+/* 화면은 세로로만 움직인다: 페이지 자체는 고정하고(스크롤은 main 안에서만), 좌우 끌기·확대는 막는다 */
+html,body{height:100%;width:100%;overflow:hidden;overscroll-behavior:none;touch-action:pan-y}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{margin:0;background:#141C1B;color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.6;overscroll-behavior:none}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
@@ -44,7 +46,7 @@ a{color:inherit}
 [hidden]{display:none!important}
 
 /* ── 레이아웃 ── */
-.app{height:100%;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr auto auto;max-width:560px;margin:0 auto;
+.app{height:100%;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr auto auto;max-width:560px;margin:0 auto;overflow:hidden;
   background:linear-gradient(180deg,#3A504C 0%,#2B3D3A 40%,#22302E 100%)}
 .top{position:relative;padding:calc(12px + var(--sat)) 16px 12px;display:flex;align-items:center;gap:10px;
   background:repeating-linear-gradient(90deg,rgba(255,255,255,.05) 0 1px,transparent 1px 3px),var(--metal);
@@ -70,8 +72,8 @@ a{color:inherit}
 .wake-btn[aria-pressed="true"]{color:#E9FBFF;border-color:rgba(102,220,234,.8);box-shadow:var(--bevel),0 0 14px rgba(102,220,234,.55)}
 .wake-btn[aria-pressed="true"] .dot{width:7px;height:7px;border-radius:50%;background:var(--cyan);box-shadow:0 0 6px var(--cyan);animation:blink 1.6s infinite}
 @keyframes blink{50%{opacity:.25}}
-main{overflow-y:auto;padding:12px 16px 24px;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:#7F9993 transparent}
-.view{display:grid;gap:16px;align-content:start}
+main{overflow-y:auto;overflow-x:hidden;touch-action:pan-y;overscroll-behavior:contain;padding:12px 16px 24px;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:#7F9993 transparent}
+.view{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-content:start}
 
 .tabs{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid rgba(255,255,255,.22);
   background:linear-gradient(180deg,#34494A 0%,#1F2C2D 100%);padding:0 0 var(--sab);box-shadow:0 -4px 12px rgba(0,0,0,.35)}
@@ -283,7 +285,7 @@ body.speaking .sound i{animation-name:sound;animation-duration:1.15s;animation-t
 
 /* ── 수정&삭제 ── */
 .filters{display:grid;gap:8px;position:sticky;top:-12px;background:#2F423F;margin:0 -16px;padding:10px 16px;z-index:2;box-shadow:0 6px 10px rgba(0,0,0,.25)}
-.seg{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.seg{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;touch-action:pan-x;overscroll-behavior:contain}
 .seg button{flex:0 0 auto;height:32px;padding:0 13px;border-radius:16px;border:1px solid var(--line);background:rgba(18,26,25,.45);color:var(--muted);font-size:13px}
 .seg button[aria-pressed="true"]{background:var(--bronze-btn);border-color:var(--brass);color:#2A1809;font-weight:700}
 .frow{display:grid;grid-template-columns:auto 1fr;gap:8px}
@@ -310,6 +312,8 @@ body.speaking .sound i{animation-name:sound;animation-duration:1.15s;animation-t
 .dots i:nth-child(2){animation-delay:.15s}.dots i:nth-child(3){animation-delay:.3s}
 @keyframes dot{0%,80%,100%{opacity:.25}40%{opacity:1}}
 .demo-badge{font-family:var(--mono);font-size:11px;color:#FBE9CF;background:linear-gradient(180deg,#8A5A30,#5E3A1C);border:1px solid rgba(241,211,168,.5);border-radius:5px;padding:2px 8px;align-self:flex-start;margin-top:12px}
+/* 아이폰은 글자가 16px보다 작은 입력칸을 누르면 화면을 확대해 버려서(그 뒤로 좌우로 밀림) 입력칸 글자를 16px로 맞춘다 */
+@supports (-webkit-touch-callout:none){input,select,textarea{font-size:16px!important}}
 @media (max-width:430px){.top{gap:7px;padding-left:12px;padding-right:12px}.mark{gap:6px}.mark b{font-size:34px}.mark span{font-size:11.5px;letter-spacing:0}.wake-btn{padding:0 11px 0 9px;font-size:13px}.icon-btn{width:40px}.demo-badge{padding:1px 5px;font-size:10px}.banner{font-size:13px}}
 @media (max-width:360px){.wake-btn .lbl{display:none}.wake-btn{padding:0 10px}.greet{font-size:22px}.mic-hint{font-size:21px}}
 </style>
