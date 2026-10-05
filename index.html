@@ -138,6 +138,12 @@ main{overflow-y:auto;padding:12px 16px 24px;-webkit-overflow-scrolling:touch;scr
 @keyframes look{0%,100%{transform:rotateY(0) translateX(0)}22%,30%{transform:rotateY(-17deg) translateX(-3.5%) rotateZ(-1.5deg)}50%{transform:rotateY(0) translateX(0)}72%,80%{transform:rotateY(17deg) translateX(3.5%) rotateZ(1.5deg)}}
 body.speaking #micTalk .mouth{opacity:1;animation:talk .46s ease-in-out infinite}
 @keyframes talk{0%,100%{transform:translate(-50%,-42%) scaleY(.25)}20%{transform:translate(-50%,-36%) scaleY(1)}45%{transform:translate(-50%,-40%) scaleY(.45)}70%{transform:translate(-50%,-36%) scaleY(.85)}}
+/* 기록 탭은 눈 감은 얼굴 사진을 쓴다(같은 구도라 윤곽 마스크를 그대로 쓴다). 덧그린 눈꺼풀은 필요 없다 */
+#micLog .fc{background-image:url(icons/face-closed.webp)}
+#micLog .lid{display:none}
+/* 대화 탭에서 말하는 동안에는 물결을 감추고 부채꼴만 보여 준다 */
+.wave{transition:opacity .3s}
+body.speaking #v-talk .wave{opacity:0}
 /* 음성 출력: Lobby가 말하는 동안 얼굴 좌우로 스피커 소리처럼 부채꼴 호가 차례로 퍼져 나간다 */
 .sound{position:absolute;top:58%;left:calc(50% + 66px);width:0;height:0;z-index:2;pointer-events:none;opacity:0;transition:opacity .2s}
 .sound.l{left:calc(50% - 66px);transform:scaleX(-1)}
@@ -1413,7 +1419,31 @@ $('#docFile').addEventListener('change', e => uploadDocs(e.target.files));
     { c: 'rgba(102,220,234,.85)', k: 0.072, v: 2.1, a: 0.85, w: 1.2 },
     { c: 'rgba(102,220,234,.4)', k: 0.110, v: -2.8, a: 0.6, w: 1 },
   ];
-  const items = [...document.querySelectorAll('.wave')].map(cv => ({ cv, ctx: cv.getContext('2d'), mic: cv.parentElement.querySelector('.mic'), level: 0.3 }));
+  const items = [...document.querySelectorAll('.wave')].map(cv => ({ cv, ctx: cv.getContext('2d'), mic: cv.parentElement.querySelector('.mic'), level: 0.3, ribbon: !!cv.closest('#v-log') }));
+  // 기록 탭: 사진 속 음파처럼 여러 겹의 선이 마디에서 모였다가 부풀어 오르는 다발(청동·청록)이 얼굴 양옆에서 바깥으로 흘러간다
+  const FAMS = [{ c: '221,169,110', per: 0.62, v: 1, a: 1 }, { c: '102,220,234', per: 0.44, v: -1.35, a: 0.82 }];
+  function drawRibbon(it, t, w, h, on) {
+    const { ctx } = it, cx = w / 2, cy = h / 2, r = it.mic.offsetWidth / 2 * 0.88, D = Math.max(40, cx - r), N = 8;
+    const speed = on ? 3.4 : 0.9;
+    const beat = 0.78 + 0.22 * Math.sin(t * (on ? 6.1 : 1.3)) * Math.sin(t * (on ? 2.3 : 0.7) + 1);   // 숨 쉬듯 커졌다 작아진다
+    FAMS.forEach((F, fi) => {
+      const k = Math.PI * 2 / (D * F.per);
+      for (let j = 0; j < N; j++) {
+        const amp = (j + 1) / N;
+        ctx.beginPath(); ctx.strokeStyle = `rgba(${F.c},${(0.22 + 0.63 * amp * amp).toFixed(2)})`; ctx.lineWidth = j === N - 1 ? 1.4 : 0.8;
+        [-1, 1].forEach(side => {
+          for (let d = 0; d <= D; d += 2) {
+            const env = Math.pow(Math.sin(Math.PI * d / D), 1.3);
+            const y = cy + env * amp * F.a * 64 * it.level * beat * Math.sin(d * k - t * speed * F.v + fi * 1.3);
+            d ? ctx.lineTo(cx + side * (r + d), y) : ctx.moveTo(cx + side * (r + d), y);
+          }
+        });
+        ctx.stroke();
+      }
+    });
+    ctx.save(); ctx.shadowColor = 'rgba(102,220,234,.9)'; ctx.shadowBlur = 8; ctx.strokeStyle = 'rgba(214,246,250,.85)'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(cx - r, cy); ctx.moveTo(cx + r, cy); ctx.lineTo(w, cy); ctx.stroke(); ctx.restore();
+  }
   function draw(it, t) {
     const { cv, ctx } = it;
     const w = cv.clientWidth, h = cv.clientHeight; if (!w || !h) return;
@@ -1422,6 +1452,7 @@ $('#docFile').addEventListener('change', e => uploadDocs(e.target.files));
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
     const on = it.mic.classList.contains('on');
     it.level += ((on ? 1 : 0.5) - it.level) * 0.08;
+    if (it.ribbon) return drawRibbon(it, t, w, h, on);
     const cx = w / 2, cy = h / 2, r = it.mic.offsetWidth / 2, speed = on ? 2.6 : 0.8;
     LINES.forEach((L, li) => {
       ctx.beginPath(); ctx.strokeStyle = L.c; ctx.lineWidth = L.w;
