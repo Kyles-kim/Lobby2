@@ -345,7 +345,7 @@ body.speaking .sound i{animation-name:sound;animation-duration:1.15s;animation-t
           <button class="btn sm" id="bannerPlay">듣기</button>
           <button class="btn sm pri" id="bannerOpen">보기</button>
         </div>
-        <div class="greet">카일님 ~ 무엇을 도와드릴까요?</div>
+        <div class="greet">카일님~ 뭐가 궁금하세요?</div>
         <div class="orb-wrap">
           <canvas class="wave" aria-hidden="true"></canvas>
           <button class="mic face" id="micTalk" aria-label="말하기 시작 / 중단">
@@ -354,7 +354,7 @@ body.speaking .sound i{animation-name:sound;animation-duration:1.15s;animation-t
           <span class="sound l" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
           <span class="sound r" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
         </div>
-        <div class="mic-hint" id="hintTalk"><b>Lobby</b>가 경청하고 있습니다.</div>
+        <div class="mic-hint" id="hintTalk">비서<b>Lobby</b> 입니다.</div>
         <div class="live dim" id="liveTalk"></div>
         <div class="pedestal" aria-hidden="true"></div>
         <div class="stage-foot" aria-hidden="true"></div>
@@ -376,14 +376,14 @@ body.speaking .sound i{animation-name:sound;animation-duration:1.15s;animation-t
     <!-- ───── 기록 ───── -->
     <section class="view" id="v-log" hidden>
       <div class="stage">
-        <div class="greet">카일님 ~ 기록할 내용을 말씀하세요.</div>
+        <div class="greet">카일님~ 무엇이든 말씀하세요.</div>
         <div class="orb-wrap">
           <canvas class="wave" aria-hidden="true"></canvas>
           <button class="mic face" id="micLog" aria-label="기록 말하기 시작 / 중단">
             <span class="head"><span class="fc"><i class="mouth"></i></span></span>
           </button>
         </div>
-        <div class="mic-hint" id="hintLog"><b>Lobby</b>가 경청하고 있습니다.</div>
+        <div class="mic-hint" id="hintLog">비서<b>Lobby</b> 입니다.</div>
         <div class="live dim" id="liveLog"></div>
         <div class="pedestal" aria-hidden="true"></div>
         <div class="stage-foot" aria-hidden="true"></div>
@@ -501,7 +501,7 @@ const store = {
   set(k, v) { try { localStorage.setItem('lobby2.' + k, JSON.stringify(v)); } catch {} },
 };
 const DEFAULT_URL = 'https://nawopzisxmgaqtchpcrb.supabase.co/functions/v1/api';
-const HINT_IDLE = '<b>Lobby</b>가 경청하고 있습니다.';
+const HINT_IDLE = '비서<b>Lobby</b> 입니다.';
 const DEFAULT_WAKE = '안녕 로비, 헤이 로비, 로비야, 로비, lobby';
 const WEEK = ['월','화','수','목','금','토','일'];
 const S = {
