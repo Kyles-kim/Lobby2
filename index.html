@@ -1419,7 +1419,7 @@ $('#docFile').addEventListener('change', e => uploadDocs(e.target.files));
     { c: 'rgba(102,220,234,.85)', k: 0.072, v: 2.1, a: 0.85, w: 1.2 },
     { c: 'rgba(102,220,234,.4)', k: 0.110, v: -2.8, a: 0.6, w: 1 },
   ];
-  const items = [...document.querySelectorAll('.wave')].map(cv => ({ cv, ctx: cv.getContext('2d'), mic: cv.parentElement.querySelector('.mic'), level: 0.3, ribbon: !!cv.closest('#v-log') }));
+  const items = [...document.querySelectorAll('.wave')].map(cv => ({ cv, ctx: cv.getContext('2d'), mic: cv.parentElement.querySelector('.mic'), level: 0.5, ribbon: !!cv.closest('#v-log') }));
   // 기록 탭: 사진 속 음파처럼 여러 겹의 선이 마디에서 모였다가 부풀어 오르는 다발(청동·청록)이 얼굴 양옆에서 바깥으로 흘러간다
   const FAMS = [{ c: '221,169,110', per: 0.62, v: 1, a: 1 }, { c: '102,220,234', per: 0.44, v: -1.35, a: 0.82 }];
   function drawRibbon(it, t, w, h, on) {
@@ -1451,7 +1451,8 @@ $('#docFile').addEventListener('change', e => uploadDocs(e.target.files));
     if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
     const on = it.mic.classList.contains('on');
-    it.level += ((on ? 1 : 0.5) - it.level) * 0.08;
+    const goal = on ? 1 : 0.5;
+    it.level = Math.abs(goal - it.level) < 0.01 ? goal : it.level + (goal - it.level) * 0.12;
     if (it.ribbon) return drawRibbon(it, t, w, h, on);
     const cx = w / 2, cy = h / 2, r = it.mic.offsetWidth / 2, speed = on ? 2.6 : 0.8;
     LINES.forEach((L, li) => {
@@ -1468,7 +1469,11 @@ $('#docFile').addEventListener('change', e => uploadDocs(e.target.files));
   }
   let last = 0;
   function tick(ms) {
-    if (ms - last > 33) { last = ms; items.forEach(it => { if (it.cv.offsetParent) draw(it, ms / 1000); }); }
+    if (ms - last > 33) {
+      const dt = Math.min(0.1, (ms - last) / 1000); last = ms;
+      // 듣는 동안에만 시간이 흐른다 → 입력·출력이 없을 때 음파는 멈춰 있는 그림이다
+      items.forEach(it => { if (it.mic.classList.contains('on')) it.t = (it.t || 0) + dt; if (it.cv.offsetParent) draw(it, it.t || 0); });
+    }
     if (!still) requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);
