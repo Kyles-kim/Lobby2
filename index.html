@@ -457,7 +457,7 @@ const store = {
   get(k, d) { try { const v = localStorage.getItem('lobby2.' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem('lobby2.' + k, JSON.stringify(v)); } catch {} },
 };
-const DEFAULT_URL = '';   // Supabase 서버를 배포한 뒤 주소(https://….supabase.co/functions/v1/api)를 넣으면 설정 없이 바로 연결된다
+const DEFAULT_URL = 'https://nawopzisxmgaqtchpcrb.supabase.co/functions/v1/api';
 const HINT_IDLE = '<b>Lobby</b>가 경청하고 있습니다.';
 const DEFAULT_WAKE = '안녕 로비, 헤이 로비, 로비야, 로비, lobby';
 const WEEK = ['월','화','수','목','금','토','일'];
