@@ -126,8 +126,8 @@ main{overflow-y:auto;overflow-x:hidden;touch-action:pan-y;overscroll-behavior:co
 .mic.face::before,.mic.face::after{display:none}
 .mic.face.on{box-shadow:none}
 /* 테두리 없이 머리·목 윤곽대로만 보이게 한다: 사진에서 머리 부분(165,22 ~ 505,562)을 쓰고, 윤곽 모양의 마스크로 배경을 걷어 낸다 */
-.head{position:absolute;inset:0;perspective:560px;pointer-events:none;filter:drop-shadow(0 0 14px rgba(102,220,234,.38)) drop-shadow(0 14px 16px rgba(0,0,0,.55));transition:filter .3s}
-.mic.face.on .head{filter:drop-shadow(0 0 20px rgba(102,220,234,.85)) drop-shadow(0 0 34px rgba(221,169,110,.5)) drop-shadow(0 14px 16px rgba(0,0,0,.55))}
+.fhead{position:absolute;inset:0;perspective:560px;pointer-events:none;filter:drop-shadow(0 0 14px rgba(102,220,234,.38)) drop-shadow(0 14px 16px rgba(0,0,0,.55));transition:filter .3s}
+.mic.face.on .fhead{filter:drop-shadow(0 0 20px rgba(102,220,234,.85)) drop-shadow(0 0 34px rgba(221,169,110,.5)) drop-shadow(0 14px 16px rgba(0,0,0,.55))}
 .fc{position:absolute;inset:0;background:url(icons/face.webp) 50% 16.92%/197.06% auto no-repeat;transform-origin:50% 82%;transition:transform .5s;
   -webkit-mask:var(--head-mask) center/100% 100% no-repeat;mask:var(--head-mask) center/100% 100% no-repeat}
 :root{--head-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='165 22 340 540' preserveAspectRatio='none'%3E%3Cfilter id='b' x='-10%25' y='-10%25' width='120%25' height='120%25'%3E%3CfeGaussianBlur stdDeviation='2.5'/%3E%3C/filter%3E%3Cg filter='url(%23b)' fill='%23fff'%3E%3Cpath d='M335 42 C240 42 188 110 188 205 C188 290 207 370 242 425 C264 458 296 485 335 487 C374 485 406 458 428 425 C463 370 482 290 482 205 C482 110 430 42 335 42 Z'/%3E%3Cpath d='M264 430 C264 485 256 505 224 524 C252 550 418 550 446 524 C414 505 406 485 406 430 Z'/%3E%3C/g%3E%3C/svg%3E")}
@@ -349,7 +349,7 @@ body.speaking .sound i{animation-name:sound;animation-duration:1.15s;animation-t
         <div class="orb-wrap">
           <canvas class="wave" aria-hidden="true"></canvas>
           <button class="mic face" id="micTalk" aria-label="말하기 시작 / 중단">
-            <span class="head"><span class="fc"><i class="mouth"></i></span></span>
+            <span class="fhead"><span class="fc"><i class="mouth"></i></span></span>
           </button>
           <span class="sound l" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
           <span class="sound r" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
@@ -380,7 +380,7 @@ body.speaking .sound i{animation-name:sound;animation-duration:1.15s;animation-t
         <div class="orb-wrap">
           <canvas class="wave" aria-hidden="true"></canvas>
           <button class="mic face" id="micLog" aria-label="기록 말하기 시작 / 중단">
-            <span class="head"><span class="fc"><i class="mouth"></i></span></span>
+            <span class="fhead"><span class="fc"><i class="mouth"></i></span></span>
           </button>
         </div>
         <div class="mic-hint" id="hintLog">비서<b>Lobby</b> 입니다.</div>
