@@ -139,7 +139,8 @@ insert into categories (name, description, added) values
   ('여행', '국내외 여행·숙박', to_char(now() at time zone 'Asia/Seoul', 'YYYY-MM-DD')),
   ('업무', '회사 일정·거래처·생산', to_char(now() at time zone 'Asia/Seoul', 'YYYY-MM-DD')),
   ('재테크', '주식·저축·투자', to_char(now() at time zone 'Asia/Seoul', 'YYYY-MM-DD')),
-  ('앱개발', '앱 아이디어·개발 작업', to_char(now() at time zone 'Asia/Seoul', 'YYYY-MM-DD'))
+  ('앱개발', '앱 아이디어·개발 작업', to_char(now() at time zone 'Asia/Seoul', 'YYYY-MM-DD')),
+  ('건강/진료', '병원·진료·약·건강검진', to_char(now() at time zone 'Asia/Seoul', 'YYYY-MM-DD'))
 on conflict (name) do nothing;
 
 -- 기본 예약: 아침 브리핑, 오늘의 보고서 (다음 실행 시각은 서버가 첫 실행 때 채운다)

@@ -1568,7 +1568,7 @@ const Demo = (() => {
   const t = ymd(new Date());
   const addDays = n => { const d = new Date(); d.setDate(d.getDate() + n); return ymd(d); };
   const now = () => t + ' ' + new Date().toTimeString().slice(0, 5);
-  const cats = ['차량','생활','미용/자기관리','외식/모임','가족행사','여가/취미','여행','업무','재테크','앱개발'].map(n => ({ name: n, desc: '' }));
+  const cats = ['차량','생활','미용/자기관리','외식/모임','가족행사','여가/취미','여행','업무','재테크','앱개발','건강/진료'].map(n => ({ name: n, desc: '' }));
   let seq = 10, demoCost = 1240, demoCalls = 18;
   let rows = [
     { ID: 'D-001', 입력일시: addDays(-1) + ' 08:12', 대상일: addDays(-1), 대상시각: '', 유형: '지출', 분류: '차량', 제목: '엔진오일 교체', 내용: '주행거리 62,000km 시점 교체', 금액: 85000, 인물: '', 장소: '', 태그: '엔진오일, 정비', 상태: '정상', 원문: '어제 엔진오일 갈았어 8만5천원 주행거리 6만2천', 수정일시: '', 삭제일시: '' },
