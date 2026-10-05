@@ -1,6 +1,6 @@
 // Lobby service worker — 화면 파일만 캐시하고, 서버(Supabase) 요청은 항상 네트워크로 보냅니다.
-const CACHE = 'lobby2-v1';
-const ASSETS = ['./', './index.html', './manifest.json', './icons/icon-192.png', './icons/icon-512.png'];
+const CACHE = 'lobby2-v2';
+const ASSETS = ['./', './index.html', './manifest.json', './icons/icon-192.png', './icons/icon-512.png', './icons/face.webp'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
