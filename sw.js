@@ -1,5 +1,5 @@
-// Lobby service worker — 화면 파일만 캐시하고, Apps Script 요청은 항상 네트워크로 보냅니다.
-const CACHE = 'lobby-v3';
+// Lobby service worker — 화면 파일만 캐시하고, 서버(Supabase) 요청은 항상 네트워크로 보냅니다.
+const CACHE = 'lobby2-v1';
 const ASSETS = ['./', './index.html', './manifest.json', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', e => {
