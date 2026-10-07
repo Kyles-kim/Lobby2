@@ -446,7 +446,7 @@ async function answer(q: string, plan: any, history: any[]) {
   const payload = {
     질문: q, 최근대화: history || [], 조회계획: plan,
     조회결과: useRec ? { 통계: result.stats, 기록: result.aiRows, 참고기록_검색어불일치: result.extra } : "(기록은 조회하지 않음)",
-    문서발췌: useDoc ? (docs.length ? docs.map((d) => ({ 번호: d.key, 문서: d.파일명, 형식: d.형식, ...(d.메모 ? { 메모: d.메모 } : {}), 위치: d.위치, 내용: d.본문 })) : "(관련 문서 조각을 찾지 못함)") : "(문서는 조회하지 않음)",
+    문서발췌: useDoc ? (docs.length ? docs.map((d) => ({ 번호: d.key, 문서: d.파일명, 형식: d.형식, ...(d.품번 ? { 품번: d.품번 } : {}), ...(d.품명 ? { 품명: d.품명 } : {}), ...(d.메모 ? { 메모: d.메모 } : {}), 위치: d.위치, 내용: d.본문 })) : "(관련 문서 조각을 찾지 못함)") : "(문서는 조회하지 않음)",
     프로필: await getProfile(),
   };
   const ans = extractJson(await callClaude(sys, JSON.stringify(payload), 1800));
@@ -456,7 +456,7 @@ async function answer(q: string, plan: any, history: any[]) {
   const dkeys = (ans.근거문서 || []).map(String);
   const used = docs.filter((d) => dkeys.indexOf(d.key) >= 0);
   const links = await docLinks(used.map((d) => d.파일ID));
-  const docEvidence = used.map((d) => ({ 파일ID: d.파일ID, 파일명: d.파일명, 형식: d.형식, 메모: d.메모, 위치: d.위치, 쪽: Number((/p\.(\d+)/.exec(d.위치) || [])[1]) || 1,
+  const docEvidence = used.map((d) => ({ 파일ID: d.파일ID, 파일명: d.파일명, 형식: d.형식, 품번: d.품번, 품명: d.품명, 메모: d.메모, 위치: d.위치, 쪽: Number((/p\.(\d+)/.exec(d.위치) || [])[1]) || 1,
     링크: links[d.파일ID] || "", 발췌: d.본문.replace(/^\[(도면|사진)\]\s*/, "").replace(/\s+/g, " ").slice(0, 180) }));
 
   await run(db.from("chat_log").insert({ at: nowStr(), question: q, plan, speech: ans.음성 || "",
@@ -561,22 +561,27 @@ async function actUploadUrl(req: any) {
   const { data, error } = await db.storage.from(CONFIG.BUCKET).createSignedUploadUrl(path);
   if (error) throw new Error("올리기 준비 실패: " + error.message);
   const row: any = { id, name, kind: usableKind(kind) ? kind : "미지원", path, size, uploaded_at: nowStr(), status: usableKind(kind) ? "올리는 중" : kind };
-  const memo = String(req.memo || "").trim().slice(0, 100);
+  const part = cleanPart(req.part), product = cleanText(req.product, 60), memo = cleanText(req.memo, 100);
+  if (part) row.part_no = part;
+  if (product) row.product = product;
   if (memo) row.memo = memo;
   await memoSafe(run(db.from("docs").insert(row)));
   return { id, uploadUrl: data.signedUrl, kind };
 }
 
-/** 문서의 품번·메모 바꾸기 (다시 읽지 않아도 바로 검색에 쓰인다) */
+/** 문서의 품번·제품명(품명)·메모 바꾸기 (다시 읽지 않아도 바로 검색에 쓰인다) */
 async function actDocMemo(req: any) {
-  await memoSafe(run(db.from("docs").update({ memo: String(req.memo || "").trim().slice(0, 100) }).eq("id", String(req.id))));
+  await memoSafe(run(db.from("docs").update({ part_no: cleanPart(req.part), product: cleanText(req.product, 60), memo: cleanText(req.memo, 100) }).eq("id", String(req.id))));
   return await actDocs();
 }
+const cleanText = (v: any, n: number) => String(v || "").trim().replace(/\s+/g, " ").slice(0, n);
+/** 품번 정리: 앞뒤 공백 제거, 영문은 대문자 (예: " cr-747 " → "CR-747") */
+const cleanPart = (v: any) => String(v || "").trim().replace(/\s+/g, " ").toUpperCase().slice(0, 40);
 
 /** 메모 칸이 없는 DB(아직 docs_media.sql을 실행하지 않음)에서 나는 오류를 알아듣기 쉽게 바꾼다 */
 async function memoSafe<T>(p: Promise<T>) {
   try { return await p; } catch (e: any) {
-    if (/memo/.test(String(e && e.message))) throw new Error("품번·메모 기능용 표 업데이트가 필요합니다. Supabase SQL Editor에서 supabase/migrations/20261008000000_docs_media.sql을 한 번 실행해 주세요.");
+    if (/memo|part_no|product/.test(String(e && e.message))) throw new Error("품번·제품명·메모 기능용 표 업데이트가 필요합니다. Supabase SQL Editor에서 supabase/migrations/20261008000000_docs_media.sql을 한 번 실행해 주세요.");
     throw e;
   }
 }
@@ -596,7 +601,7 @@ async function indexDoc(doc: any) {
     const { data: blob, error } = await db.storage.from(CONFIG.BUCKET).download(doc.path);
     if (error || !blob) throw new Error("파일을 아직 받지 못했습니다. 다시 올려 주세요");
     const bytes = new Uint8Array(await blob.arrayBuffer());
-    const r = await extractSegments(bytes, doc.kind, doc.name, doc.memo || "");
+    const r = await extractSegments(bytes, doc.kind, doc.name, [doc.part_no, doc.product, doc.memo].filter(Boolean).join(" "));
     segs = r.segs;
     if (!segs.some((s) => s.text.trim())) status = "글자 없음";
     else if (r.partial) status = "일부만 읽음(문서가 길어 앞부분만 읽었습니다. 나눠서 올려 주세요)";
@@ -608,7 +613,24 @@ async function indexDoc(doc: any) {
     await run(db.from("doc_chunks").insert(chunks.slice(i, i + 200).map((c, k) => ({ doc_id: doc.id, name: doc.name, seq: i + k + 1, loc: c.loc, body: c.text }))));
   }
   await run(db.from("docs").update({ chunks: chunks.length, read_at: nowStr(), status }).eq("id", doc.id));
+  // 비워 둔 품번·품명은 도면 표제란이나 승인원에 적힌 값으로 채운다 (표 업데이트 전이면 건너뜀)
+  if (segs.length && (!doc.part_no || !doc.product)) {
+    const m = metaFromText(segs), patch: any = {};
+    if (!doc.part_no && m.part) patch.part_no = m.part;
+    if (!doc.product && m.product) patch.product = m.product;
+    if (Object.keys(patch).length) await run(db.from("docs").update(patch).eq("id", doc.id)).catch(() => {});
+  }
   return status;
+}
+
+/** 문서 앞부분에서 "품번: …", "품명: …" 찾기 (도면 판독 결과의 표제란, 승인원 표 등) */
+function metaFromText(segs: Seg[]) {
+  const t = segs.slice(0, 6).map((x) => x.text).join("\n").slice(0, 8000);
+  const pick = (re: RegExp) => { const m = re.exec(t); const v = m ? m[1].trim() : ""; return /판독|불가|없음/.test(v) ? "" : v; };
+  return {
+    part: cleanPart(pick(/품\s*번\s*[:：]\s*([A-Za-z0-9][A-Za-z0-9\-_./ ]{1,30}?)\s*(?:[,|\n(]|$)/m)),
+    product: cleanText(pick(/(?:품\s*명|제\s*품\s*명)\s*[:：]\s*([^\n|,]{2,40}?)\s*(?:[,|\n]|$)/m), 60),
+  };
 }
 
 type Seg = { loc: string; text: string };
@@ -757,19 +779,21 @@ function chunkSegments(segs: Seg[]) {
 }
 
 async function getDocNames() {
-  const rows = await docRows("name,memo", (q) => q.order("name").limit(120));
-  return rows.map((r) => String(r.name) + (r.memo ? " (" + r.memo + ")" : "")).filter(Boolean);
+  const rows = await docRows("name,part_no,product,memo", (q) => q.order("name").limit(120));
+  return rows.map((r) => { const tag = [r.part_no, r.product, r.memo].filter(Boolean).join(" · "); return String(r.name) + (tag ? " (" + tag + ")" : ""); }).filter(Boolean);
 }
 /** docs 표 읽기. 메모 칸이 아직 없으면(표 업데이트 전) 메모 없이 읽는다 */
 async function docRows(cols: string, more: (q: any) => any = (q) => q): Promise<any[]> {
   try { return await run<any[]>(more(db.from("docs").select(cols))); }
   catch (e: any) {
-    if (!/memo/.test(String(e && e.message))) throw e;
-    return await run<any[]>(more(db.from("docs").select(cols.split(",").filter((c) => c.trim() !== "memo").join(","))));
+    if (!/memo|part_no|product/.test(String(e && e.message))) throw e;
+    return await run<any[]>(more(db.from("docs").select(cols.split(",").filter((c) => ["memo", "part_no", "product"].indexOf(c.trim()) < 0).join(","))));
   }
 }
 
 const likeEsc = (s: string) => s.replace(/[\\%_]/g, (c) => "\\" + c);
+/** 품번 검색 패턴: 하이픈·띄어쓰기 유무가 달라도 찾는다 ("CR747"·"cr 747" → CR-747) */
+const partPat = (k: string) => "%" + k.split(/[-\s_]+/).filter(Boolean).map(likeEsc).join("%").replace(/([A-Za-z])(\d)/g, "$1%$2") + "%";
 
 /** 문서 조각 검색: 키워드가 많이 맞는 조각을 골라 Claude에게 넘긴다 */
 async function searchDocs(keywords: string[], files: string[], q: string) {
@@ -788,10 +812,12 @@ async function searchDocs(keywords: string[], files: string[], q: string) {
     hits.filter((h) => fileOk(h.name)).forEach((h) => {
       score[h.id] = (score[h.id] || 0) + w + (String(h.name).toLowerCase().indexOf(k.toLowerCase()) >= 0 ? 0.5 : 0);
     });
-    // 파일 이름·품번 메모가 맞는 문서는 본문에 그 말이 없어도 찾는다 (예: "CR-747 제품사진" → CR-747_제품사진.jpg, 메모 "CR-747")
-    const byName = await docRows("id,name,memo", (q) => q.ilike("name", pat).limit(50));
+    // 파일 이름·품번·제품명(품명)·메모가 맞는 문서는 본문에 그 말이 없어도 찾는다 (예: "하부 케이스 사진" → IMG_2481.jpg, 품명 리모컨 하부 케이스, 메모 제품사진)
+    const byName = await docRows("id,name", (q) => q.ilike("name", pat).limit(50));
+    const byPart = await docRows("id,name,part_no", (q) => q.ilike("part_no", partPat(k)).limit(50)).catch(() => []);
+    const byProduct = await docRows("id,name,product", (q) => q.ilike("product", pat).limit(50)).catch(() => []);
     const byMemo = await docRows("id,name,memo", (q) => q.ilike("memo", pat).limit(50)).catch(() => []);
-    const docIds = [...byName, ...byMemo].filter((d) => fileOk(d.name)).map((d) => String(d.id)).filter((id, i, a) => a.indexOf(id) === i);
+    const docIds = [...byName, ...byPart, ...byProduct, ...byMemo].filter((d) => fileOk(d.name)).map((d) => String(d.id)).filter((id, i, a) => a.indexOf(id) === i);
     if (docIds.length) {
       const heads = await run<any[]>(db.from("doc_chunks").select("id").in("doc_id", docIds).lte("seq", 2).limit(100));
       heads.forEach((h) => { score[h.id] = (score[h.id] || 0) + 1; });
@@ -805,9 +831,9 @@ async function searchDocs(keywords: string[], files: string[], q: string) {
   if (!ids.length) return [];
   const rows = await run<any[]>(db.from("doc_chunks").select("*").in("id", ids));
   const info: Record<string, any> = {};
-  (await docRows("id,kind,memo", (q) => q.in("id", rows.map((r) => r.doc_id)))).forEach((d) => { info[d.id] = d; });
+  (await docRows("id,kind,part_no,product,memo", (q) => q.in("id", rows.map((r) => r.doc_id)))).forEach((d) => { info[d.id] = d; });
   return ids.map((id) => rows.find((r) => r.id === id)).filter(Boolean).map((v: any, i) => ({
-    key: "D" + (i + 1), 파일ID: String(v.doc_id), 파일명: String(v.name), 형식: String(info[v.doc_id]?.kind || ""), 메모: String(info[v.doc_id]?.memo || ""),
+    key: "D" + (i + 1), 파일ID: String(v.doc_id), 파일명: String(v.name), 형식: String(info[v.doc_id]?.kind || ""), 품번: String(info[v.doc_id]?.part_no || ""), 품명: String(info[v.doc_id]?.product || ""), 메모: String(info[v.doc_id]?.memo || ""),
     조각: v.seq, 위치: String(v.loc || ""), 본문: String(v.body).slice(0, 2400),
   }));
 }
@@ -832,7 +858,7 @@ async function actDocs() {
   const links = await docLinks(rows.filter((r) => r.status !== "올리는 중").map((r) => r.id));
   return {
     docs: rows.map((r) => ({ 파일ID: r.id, 파일명: r.name, 형식: r.kind, 크기: r.size, 수정일시: r.uploaded_at, 조각수: r.chunks || 0,
-      읽은일시: r.read_at, 상태: r.status, 링크: links[r.id] || "", 메모: r.memo || "" })),
+      읽은일시: r.read_at, 상태: r.status, 링크: links[r.id] || "", 품번: r.part_no || "", 품명: r.product || "", 메모: r.memo || "" })),
     maxMb: CONFIG.UPLOAD_MAX_MB,
   };
 }
