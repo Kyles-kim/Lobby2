@@ -6,13 +6,14 @@
  * 필요한 비밀 값(Supabase 대시보드 > Edge Functions > Secrets)
  *  - ANTHROPIC_API_KEY : Claude API 키
  *  - APP_PIN           : 앱 접속 암호
- *  - CRON_SECRET       : 자동 실행(15분마다)이 서버를 부를 때 쓰는 암호 (supabase/cron.sql 참고)
+ *  - CRON_SECRET       : 자동 실행(1분마다)이 서버를 부를 때 쓰는 암호 (supabase/cron.sql 참고)
  *  - LOBBY_MODEL       : (선택) 모델을 바꿀 때만
+ *  - VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY : (선택) 휴대폰 알림 서명 키. 없으면 서버가 처음 한 번 만들어 app_keys 표에 보관한다
  */
 import { createClient } from "npm:@supabase/supabase-js@2";
 import Anthropic from "npm:@anthropic-ai/sdk";
 import { strFromU8, unzipSync } from "npm:fflate";
-import { encodeBase64 } from "jsr:@std/encoding/base64";
+import { decodeBase64, encodeBase64 } from "jsr:@std/encoding/base64";
 
 // ───────────────────────── 설정 ─────────────────────────
 const CONFIG = {
@@ -36,12 +37,16 @@ const CONFIG = {
   DOC_READ_CHARS: 4000,         // "읽어 주기"로 한 번에 읽어 주는 분량(글자)
   LINK_HOURS: 24,               // 문서 열기 링크가 유효한 시간
   BUCKET: "docs",
+  ALARM_DEFAULT_MIN: 10,        // 일정·업무일정에 시각이 있으면 기본으로 몇 분 전에 알릴지 (앱 설정에서 바꿀 수 있음)
+  ALARM_ALLDAY_TIME: "09:00",   // 시각 없는(종일) 일정에 알림을 켜면 이 시각을 기준으로 알린다
+  ALARM_GRACE_MIN: 60,          // 이 시간(분) 넘게 지난 알림은 늦게라도 울리지 않고 버린다
+  PUSH_CONTACT: "https://github.com/kyles-kim/Lobby2",   // 휴대폰 알림 서버(애플·구글)에 알려 주는 연락처
 };
-const BUILD = "2026-10-05 Lobby2 · Supabase";
+const BUILD = "2026-10-07 Lobby2 · Supabase · 일정 알림";
 
 const TYPES = ["일상", "지출", "일정", "업무일정", "정보", "특이점", "아이디어", "할일"];
 const STATES = ["정상", "예정", "완료", "취소", "삭제"];
-const EDITABLE = ["대상일", "대상시각", "유형", "분류", "제목", "내용", "금액", "인물", "장소", "태그", "상태"];
+const EDITABLE = ["대상일", "대상시각", "유형", "분류", "제목", "내용", "금액", "인물", "장소", "태그", "상태", "알림"];
 const REPEATS = ["매일", "매주", "매월", "한번"];
 const WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"];
 const DAILY_ID = "DAILY";
@@ -50,7 +55,8 @@ const BRIEF_ID = "BRIEF";
 // 화면이 쓰는 한글 이름 ↔ DB 칸 이름
 const REC_MAP: [string, string][] = [["ID", "id"], ["입력일시", "created_at"], ["대상일", "target_date"], ["대상시각", "target_time"],
   ["유형", "type"], ["분류", "category"], ["제목", "title"], ["내용", "content"], ["금액", "amount"], ["인물", "people"],
-  ["장소", "place"], ["태그", "tags"], ["상태", "status"], ["원문", "raw"], ["수정일시", "updated_at"], ["삭제일시", "deleted_at"]];
+  ["장소", "place"], ["태그", "tags"], ["상태", "status"], ["원문", "raw"], ["수정일시", "updated_at"], ["삭제일시", "deleted_at"],
+  ["알림", "alarm"], ["알림시각", "alarm_at"]];
 const REPORT_MAP: [string, string][] = [["ID", "id"], ["생성일시", "created_at"], ["종류", "kind"], ["제목", "title"],
   ["음성요약", "speech"], ["상세", "detail"], ["읽음", "is_read"], ["예약ID", "task_id"]];
 const TASK_MAP: [string, string][] = [["ID", "id"], ["이름", "name"], ["반복", "repeat"], ["요일", "weekdays"], ["날짜", "date"],
@@ -110,6 +116,7 @@ const handlers: Record<string, (req: any) => Promise<any> | any> = {
   reports: actReports, readReport: actReadReport, deleteReport: actDeleteReport, runDaily: actRunDaily,
   saveTask: actSaveTask, deleteTask: actDeleteTask,
   todos: actTodos, brief: actBrief, usage: () => ({}),
+  alarms: actAlarms, alarmAck: actAlarmAck, pushKey: actPushKey, pushSub: actPushSub, pushUnsub: actPushUnsub, pushTest: actPushTest,
 };
 
 Deno.serve(async (request) => {
@@ -118,13 +125,16 @@ Deno.serve(async (request) => {
   try {
     const req = JSON.parse((await request.text()) || "{}");
 
-    if (req.action === "cron") {                 // 15분마다 자동 실행 (supabase/cron.sql)
+    if (req.action === "cron") {                 // 1분마다 자동 실행 (supabase/cron.sql)
       const secret = Deno.env.get("CRON_SECRET");
       if (!secret || String(req.secret) !== secret) return json({ ok: false, error: "허용되지 않은 요청입니다." });
+      let rang = 0;
+      try { rang = await runAlarms(); }           // 시각이 된 일정 알림을 휴대폰으로 보낸다 (시간이 중요해서 예약 작업보다 먼저)
+      catch (e: any) { console.error("알림 보내기 실패:", e && e.message || e); }
       const ran = await runScheduler();
       const p = kst();
       if (p.hour === 4 && p.minute < 15) await purgeTrash();      // 하루 한 번, 새벽 4시
-      return json({ ok: true, ran });
+      return json({ ok: true, ran, rang });
     }
 
     const pin = Deno.env.get("APP_PIN");
@@ -245,6 +255,8 @@ async function actParse(req: any) {
     '- 대상일은 yyyy-MM-dd. "어제"=오늘-1, "그저께"=오늘-2, "다음 주 X요일"=다음 주(월~일)의 X요일, "이번 주말"=이번 주 토요일(내용에 "주말" 표기), "다음 달 초"=다음 달 1일(내용에 "초순" 표기).',
     '- 날짜 언급이 없으면 일상·지출·정보·특이점·아이디어는 오늘(할일은 ""). 일정·업무일정인데 날짜가 없으면 대상일을 ""로 두고 확인필요에 질문을 적는다.',
     '- 대상시각은 HH:mm(24시간). 없으면 "".',
+    '- "~시에 알려 줘", "~하라고 깨워 줘", "알림 맞춰 줘", "리마인드 해 줘"처럼 그 시각에 알려 달라는 말은 할일(약속·회의면 일정·업무일정)로 정리하고 대상일·대상시각을 그 시각으로 채운다.',
+    '- 알림: 몇 분 전에 소리로 알려 줄지(분, 정수). "30분 전에 알려 줘"=30, "1시간 전에"=60, "하루 전에"=1440, "~시에 알려 줘"·"그때 알려 줘"=0. 알림이 필요 없다고 하면 -1. 알림 언급이 없으면 null.',
     '- 금액은 원 단위 정수. "8만5천"=85000. 없으면 null.',
     "- 제목은 20자 안팎 한 줄 요약, 내용은 정리된 본문(수치·조건 보존).",
     '- 상태: 일정·업무일정·할일은 "예정", 나머지는 "정상".',
@@ -254,15 +266,16 @@ async function actParse(req: any) {
     '- 카드번호·계좌번호·비밀번호는 절대 옮겨 적지 말고 "***"로 가린다.',
     await learnedHints(text),
     "반드시 JSON만 출력:",
-    '{"items":[{"유형":"","분류":"","새분류":false,"분류설명":"","대상일":"","대상시각":"","제목":"","내용":"","금액":null,"인물":[],"장소":"","태그":[],"상태":"","프로필항목":"","프로필값":"","확인필요":""}]}',
+    '{"items":[{"유형":"","분류":"","새분류":false,"분류설명":"","대상일":"","대상시각":"","제목":"","내용":"","금액":null,"인물":[],"장소":"","태그":[],"상태":"","알림":null,"프로필항목":"","프로필값":"","확인필요":""}]}',
   ].join("\n");
 
   const out = extractJson(await callClaude(system, text, 2000));
-  const items = (out.items || []).map((it: any) => normalizeItem(it, cats));
+  const lead = alarmVal(req.alarmLead) || String(CONFIG.ALARM_DEFAULT_MIN);
+  const items = (out.items || []).map((it: any) => normalizeItem(it, cats, lead));
   return { items, raw: text };
 }
 
-function normalizeItem(it: any, cats: any[]) {
+function normalizeItem(it: any, cats: any[], lead = String(CONFIG.ALARM_DEFAULT_MIN)) {
   const names = cats.map((c) => c.name);
   const o: any = {
     유형: TYPES.indexOf(it.유형) >= 0 ? it.유형 : "일상",
@@ -276,12 +289,17 @@ function normalizeItem(it: any, cats: any[]) {
     장소: String(it.장소 || ""),
     태그: listStr(it.태그),
     상태: STATES.indexOf(it.상태) >= 0 ? it.상태 : (/일정|할일/.test(it.유형) ? "예정" : "정상"),
+    알림: "",
     프로필항목: String(it.프로필항목 || ""),
     프로필값: String(it.프로필값 || ""),
     확인필요: String(it.확인필요 || ""),
   };
   o.새분류 = names.indexOf(o.분류) < 0;
   o.분류설명 = o.새분류 ? String(it.분류설명 || "") : "";
+  // 알림: 말씀하신 대로, 언급이 없으면 시각이 있는 일정·업무일정은 기본 알림(10분 전), 시각이 있는 할일은 정각
+  const asked = it.알림 === null || it.알림 === undefined || it.알림 === "" ? null : Number(it.알림);
+  if (asked !== null && isFinite(asked)) o.알림 = asked < 0 ? "" : alarmVal(asked);
+  else if (o.상태 === "예정" && o.대상시각) o.알림 = /일정/.test(o.유형) ? lead : o.유형 === "할일" ? "0" : "";
   return o;
 }
 
@@ -313,12 +331,15 @@ async function actSave(req: any) {
       people: listStr(it.인물), place: it.장소 || "", tags: listStr(it.태그),
       status: STATES.indexOf(it.상태) >= 0 ? it.상태 : "정상", raw, updated_at: "", deleted_at: "",
     });
+    const r = rows[rows.length - 1], alarm = alarmVal(it.알림);
+    if (alarm) { r.alarm = alarm; r.alarm_at = alarmAtOf(toKo(r, REC_MAP)); }   // 알림 없는 기록은 알림 칸을 비워 둔다(표 업데이트 전에도 저장되게)
     if (it.유형 === "정보" && it.프로필항목 && it.프로필값) {
       await run(db.from("profile").upsert({ key: String(it.프로필항목).trim(), value: mask(it.프로필값), updated: day }));
     }
   }
-  await run(db.from("records").insert(rows));
-  return { ids, recent: await recent(5) };
+  await alarmSafe(run(db.from("records").insert(rows, { defaultToNull: false })));   // 알림 칸이 없는 행은 빈칸(기본값)으로
+  const alarms = rows.filter((r) => r.alarm_at).map((r) => alarmPick(toKo(r, REC_MAP)));
+  return { ids, recent: await recent(5), alarms };
 }
 
 async function nextSeq(prefix: string) {
@@ -343,7 +364,7 @@ async function actTalk(req: any) {
   if (req.mode === "question" && (intent === "기록" || intent === "예약")) intent = "질문";
 
   if (intent === "기록") {
-    const r = await actParse({ text });
+    const r = await actParse({ text, alarmLead: req.alarmLead });
     return { intent: "기록", items: r.items, raw: r.raw };
   }
   if (intent === "예약" && plan.예약) {
@@ -361,9 +382,9 @@ async function makePlan(text: string, history: any[]) {
     "너는 카일님의 개인 비서 Lobby의 두뇌다. 카일님의 말을 보고 의도를 판단하고 조회계획을 JSON으로 만든다.",
     dateContext(),
     "의도(하나):",
-    '  기록 = 있었던 일·지출·앞으로의 일정·기억할 정보·특이점·아이디어를 남기려는 말 ("어제 오일 갈았어 8만원", "다음주 화요일 미라셀 미팅")',
+    '  기록 = 있었던 일·지출·앞으로의 일정·기억할 정보·특이점·아이디어를 남기려는 말 ("어제 오일 갈았어 8만원", "다음주 화요일 미라셀 미팅"). 그 시각에 카일님께 알려 달라는 말("내일 3시에 약 먹으라고 알려 줘", "회의 30분 전에 알려 줘", "6시에 깨워 줘")도 기록이다',
     '  질문 = 기록·회사 문서·일반 지식에 대한 물음, 요약·정리·계획 요청, 문서를 보여 달라·읽어 달라는 말 ("이번 주 일정 뭐야?", "CR-747 승인원 검사 항목 알려줘", "작업표준서 보여 줘")',
-    '  예약 = 정해진 시각에 Lobby가 알아서 하도록 맡기는 말 ("매주 월요일 8시에 이번 주 일정 정리해줘", "금요일 오후 5시에 이번 주 지출 알려줘")',
+    '  예약 = 정해진 시각에 Lobby가 기록을 조회·정리해 보고서로 남기도록 맡기는 말 ("매주 월요일 8시에 이번 주 일정 정리해줘", "금요일 오후 5시에 이번 주 지출 알려줘")',
     '  브리핑 = 오늘 하루를 종합해 달라는 말 ("브리핑", "오늘 뭐 해야 돼?", "오늘 할 일·일정·날씨 알려 줘"). 특정 기간(이번 주 등)이나 특정 주제 질문은 브리핑이 아니라 질문.',
     "  대화 = 인사·잡담·감사",
     "  애매하면 질문. 과거형 서술·금액 보고는 기록.",
@@ -495,6 +516,7 @@ async function runPlan(plan: any) {
   const aiRows = rows.slice(0, limit).map((r) => ({
     ID: r.ID, 날짜: dayOf(r), 시각: r.대상시각, 유형: r.유형, 분류: r.분류,
     제목: r.제목, 내용: r.내용, 금액: r.금액, 인물: r.인물, 장소: r.장소, 상태: r.상태,
+    ...(r.알림시각 ? { 알림시각: r.알림시각 } : {}),
   }));
   // 검색어에 안 걸렸지만 동의어일 수 있는 기록(예: 루틴운동 ↔ 러닝·헬스)을 AI가 직접 판단하도록 최근 기록을 함께 넘긴다
   let extra: any[] = [];
@@ -876,20 +898,25 @@ async function buildBrief() {
 }
 
 // ───────────────────────── 보고서 · 예약 작업 ─────────────────────────
-/** 15분마다 자동 실행: 시간이 된 예약(밤 10시 보고서 포함)을 수행 */
+/** 1분마다 자동 실행: 시간이 된 예약(아침 브리핑·밤 10시 보고서 포함)을 수행 */
 async function runScheduler() {
   const now = new Date(), nowS = nowStr(now);
-  let ran = 0;
+  const due: any[] = [];
   for (const t of await getTasks()) {
     if (t.활성 !== "Y") continue;
     if (!t.다음실행) { t.다음실행 = nextRun(t, now); await saveTaskRow(t); continue; }
     if (t.다음실행 > nowS) continue;
-    try { await runTask(t); ran++; }
-    catch (e: any) { await saveReport({ 종류: "오류", 제목: t.이름 + " 실행 실패", 음성요약: "", 상세: String(e && e.message || e), 예약ID: t.ID }); }
+    // 실행하기 전에 다음 실행 시각부터 모두 적어 둔다 (오래 걸리는 작업이 다음 자동 실행과 겹쳐 두 번 돌지 않게)
     t.마지막실행 = nowS;
     if (t.반복 === "한번") { t.활성 = "N"; t.다음실행 = ""; }
     else t.다음실행 = nextRun(t, new Date(now.getTime() + 60000));
     await saveTaskRow(t);
+    due.push(t);
+  }
+  let ran = 0;
+  for (const t of due) {
+    try { await runTask(t); ran++; }
+    catch (e: any) { await saveReport({ 종류: "오류", 제목: t.이름 + " 실행 실패", 음성요약: "", 상세: String(e && e.message || e), 예약ID: t.ID }); }
   }
   return ran;
 }
@@ -1055,6 +1082,203 @@ function normTime(s: any) {
   return z2(h) + ":" + z2(mi);
 }
 
+// ───────────────────────── 일정 알림 ─────────────────────────
+// 기록의 알림(몇 분 전)과 대상일·대상시각으로 "다음 알림 시각(alarm_at)"을 계산해 둔다.
+// 앱 화면이 켜져 있으면 화면이 직접 소리를 내고, 휴대폰 알림을 켜 둔 기기에는 1분마다 도는 자동 실행이 알림을 보낸다.
+
+/** 알림 값 정리: "" = 알림 없음, "0" = 정각, "10" = 10분 전 … (최대 7일 전) */
+function alarmVal(v: any) {
+  if (v === null || v === undefined || String(v).trim() === "") return "";
+  const n = Math.round(Number(String(v).replace(/[^\d.-]/g, "")));
+  return isFinite(n) && n >= 0 ? String(Math.min(n, 7 * 1440)) : "";
+}
+const kstMs = (ymd: string, hm: string) => Date.parse(ymd + "T" + hm + ":00+09:00");
+
+/** 다음에 울릴 시각("yyyy-MM-dd HH:mm"). 알림이 없거나, 예정이 아니거나, 이미 지난 일이면 "" */
+function alarmAtOf(r: any, from = new Date()) {
+  if (r.상태 !== "예정" || alarmVal(r.알림) === "" || !/^\d{4}-\d{2}-\d{2}$/.test(String(r.대상일 || ""))) return "";
+  const ev = kstMs(r.대상일, normTime(r.대상시각) || CONFIG.ALARM_ALLDAY_TIME);
+  if (isNaN(ev) || ev <= from.getTime()) return "";
+  const at = ev - Number(alarmVal(r.알림)) * 60000;
+  return nowStr(new Date(at > from.getTime() ? at : ev));     // "10분 전"이 이미 지났으면 일정 시각 정각에 울린다
+}
+
+const alarmPick = (r: any) => ({ ID: r.ID, 제목: r.제목, 유형: r.유형, 대상일: r.대상일, 대상시각: r.대상시각, 장소: r.장소, 알림: r.알림, 알림시각: r.알림시각 });
+
+/** 알림 칸이 없는 DB(아직 alarms.sql을 실행하지 않음)에서 나는 오류를 알아듣기 쉽게 바꾼다 */
+async function alarmSafe<T>(p: Promise<T>) {
+  try { return await p; } catch (e: any) {
+    if (/alarm/.test(String(e && e.message))) throw new Error("알림 기능용 표 업데이트가 필요합니다. Supabase SQL Editor에서 supabase/migrations/20261007000000_alarms.sql을 한 번 실행해 주세요.");
+    throw e;
+  }
+}
+
+/** 화면이 미리 받아 두는 알림 목록: 조금 전(놓친 것)부터 36시간 뒤까지 */
+async function actAlarms() {
+  const from = nowStr(new Date(Date.now() - CONFIG.ALARM_GRACE_MIN * 60000)), to = nowStr(new Date(Date.now() + 36 * 3600000));
+  try {
+    const rows = await run<any[]>(db.from("records").select("*").eq("status", "예정").neq("alarm_at", "")
+      .gte("alarm_at", from).lte("alarm_at", to).order("alarm_at").limit(100));
+    return { alarms: rows.map((r) => alarmPick(toKo(r, REC_MAP))), now: nowStr() };
+  } catch (e: any) {
+    if (/alarm/.test(String(e && e.message))) return { alarms: [], needsUpdate: true };
+    throw e;
+  }
+}
+
+/** 화면에서 알림을 확인(끄기)하거나 n분 뒤 다시 알림 */
+async function actAlarmAck(req: any) {
+  const id = String(req.id || "");
+  if (!id) throw new Error("알림 기록 ID가 없습니다.");
+  const n = Math.max(0, Math.min(180, parseInt(req.snooze, 10) || 0));
+  const next = n ? nowStr(new Date(Date.now() + n * 60000)) : "";
+  let q = db.from("records").update({ alarm_at: next }).eq("id", id);
+  if (!n && req.at) q = q.eq("alarm_at", String(req.at));      // 그사이 다시 맞춰진 알림은 지우지 않는다
+  await run(q);
+  return { alarm_at: next };
+}
+
+/** 알림 문구: "10분 뒤 · 오후 3시" */
+function alarmWhen(a: any, now = Date.now()) {
+  const ev = kstMs(a.대상일, normTime(a.대상시각) || CONFIG.ALARM_ALLDAY_TIME);
+  const m = Math.round((ev - now) / 60000);
+  const rel = m >= 1440 ? Math.round(m / 1440) + "일 뒤" : m >= 60 ? Math.floor(m / 60) + "시간" + (m % 60 ? " " + (m % 60) + "분" : "") + " 뒤"
+    : m >= 1 ? m + "분 뒤" : m > -2 ? "지금" : (-m) + "분 지남";
+  const day = a.대상일 === today() ? "오늘" : a.대상일 === ymdAdd(today(), 1) ? "내일" : dateLabel(a.대상일);
+  return { rel, minutes: m, text: rel + " · " + day + " " + (a.대상시각 ? timeWord(a.대상시각) : "종일") };
+}
+
+/** 1분마다: 시각이 된 알림을 휴대폰 알림으로 보낸다 */
+async function runAlarms() {
+  const nowS = nowStr();
+  const due = await run<any[]>(db.from("records").select("*").neq("alarm_at", "").lte("alarm_at", nowS).order("alarm_at").limit(50));
+  if (!due.length) return 0;
+  const grace = nowStr(new Date(Date.now() - CONFIG.ALARM_GRACE_MIN * 60000));
+  const subs = await run<any[]>(db.from("push_subs").select("*"));
+  let sent = 0;
+  for (const row of due) {
+    const r = toKo(row, REC_MAP);
+    if (r.상태 === "예정" && r.알림시각 >= grace) {
+      // 받을 기기가 없거나 보내지 못했으면 지우지 않고 남겨 둔다 → 앱을 열면 화면이 대신 울린다
+      if (!subs.length) continue;
+      const w = alarmWhen(r);
+      const res = await pushAll(subs, { title: "🔔 " + r.제목, body: w.text + (r.장소 ? " · " + r.장소 : ""), tag: "alarm-" + r.ID, alarm: alarmPick(r) });
+      if (!res.sent) continue;
+      sent++;
+    }
+    await run(db.from("records").update({ alarm_at: "" }).eq("id", row.id).eq("alarm_at", row.alarm_at));
+  }
+  return sent;
+}
+
+// ───────────────────────── 휴대폰 알림 (Web Push) ─────────────────────────
+// 표준 Web Push(VAPID + aes128gcm, RFC 8291/8292)를 Deno 기본 암호화(WebCrypto)로 직접 보낸다. 별도 라이브러리·외부 서비스가 필요 없다.
+const b64u = (b: Uint8Array) => encodeBase64(b).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const unb64u = (s: string) => { const t = String(s).replace(/-/g, "+").replace(/_/g, "/"); return decodeBase64(t + "===".slice((t.length + 3) % 4)); };
+const utf8 = (s: string) => new TextEncoder().encode(s);
+function concat(...parts: Uint8Array[]) {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let i = 0; parts.forEach((p) => { out.set(p, i); i += p.length; });
+  return out;
+}
+
+let vapidCache: { pub: string; key: CryptoKey } | null = null;
+/** 서명 키: 비밀 값(VAPID_*)이 있으면 그것을, 없으면 처음 한 번 만들어 app_keys 표에 보관한 키를 쓴다 */
+async function vapid() {
+  if (vapidCache) return vapidCache;
+  let pub = Deno.env.get("VAPID_PUBLIC_KEY") || "", priv = Deno.env.get("VAPID_PRIVATE_KEY") || "";
+  if (!pub || !priv) {
+    const names = ["vapid_public", "vapid_private"];
+    const load = async () => Object.fromEntries((await run<any[]>(db.from("app_keys").select("key,value").in("key", names))).map((r) => [r.key, r.value]));
+    let k: any = await load();
+    if (!k.vapid_public || !k.vapid_private) {
+      if (k.vapid_public || k.vapid_private) await run(db.from("app_keys").delete().in("key", names));   // 한쪽만 남은 키는 버리고 새로 만든다
+      const pair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]) as CryptoKeyPair;
+      const raw = new Uint8Array(await crypto.subtle.exportKey("raw", pair.publicKey));
+      const jwk = await crypto.subtle.exportKey("jwk", pair.privateKey);
+      await run(db.from("app_keys").upsert([{ key: "vapid_public", value: b64u(raw) }, { key: "vapid_private", value: String(jwk.d) }], { onConflict: "key", ignoreDuplicates: true }));
+      k = await load();                            // 동시에 만든 요청이 있었으면 먼저 저장된 쪽을 쓴다
+    }
+    pub = k.vapid_public; priv = k.vapid_private;
+  }
+  const p = unb64u(pub);
+  const key = await crypto.subtle.importKey("jwk", { kty: "EC", crv: "P-256", d: priv, x: b64u(p.slice(1, 33)), y: b64u(p.slice(33, 65)), ext: true },
+    { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+  return vapidCache = { pub, key };
+}
+
+/** VAPID 인증 헤더 (ES256 JWT) */
+async function vapidAuth(endpoint: string) {
+  const v = await vapid();
+  const part = (o: any) => b64u(utf8(JSON.stringify(o)));
+  const unsigned = part({ typ: "JWT", alg: "ES256" }) + "." + part({ aud: new URL(endpoint).origin, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: CONFIG.PUSH_CONTACT });
+  const sig = new Uint8Array(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, v.key, utf8(unsigned)));
+  return "vapid t=" + unsigned + "." + b64u(sig) + ", k=" + v.pub;
+}
+
+/** 알림 내용 암호화 (aes128gcm, RFC 8291). salt·서버 키를 넘기면 고정값으로 계산(시험용) */
+async function encryptPush(p256dh: string, auth: string, text: string, fixed?: { salt: Uint8Array<ArrayBuffer>; pair: CryptoKeyPair }) {
+  const uaPub = unb64u(p256dh), secret = unb64u(auth);
+  const pair = fixed ? fixed.pair : await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]) as CryptoKeyPair;
+  const asPub = new Uint8Array(await crypto.subtle.exportKey("raw", pair.publicKey));
+  const uaKey = await crypto.subtle.importKey("raw", uaPub, { name: "ECDH", namedCurve: "P-256" }, false, []);
+  const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: "ECDH", public: uaKey }, pair.privateKey, 256));
+  const hkdf = async (salt: BufferSource, ikm: BufferSource, info: BufferSource, len: number) => new Uint8Array(await crypto.subtle.deriveBits(
+    { name: "HKDF", hash: "SHA-256", salt, info }, await crypto.subtle.importKey("raw", ikm, "HKDF", false, ["deriveBits"]), len * 8));
+  const ikm = await hkdf(secret, shared, concat(utf8("WebPush: info\0"), uaPub, asPub), 32);
+  const salt = fixed ? fixed.salt : crypto.getRandomValues(new Uint8Array(16));
+  const cek = await hkdf(salt, ikm, utf8("Content-Encoding: aes128gcm\0"), 16);
+  const nonce = await hkdf(salt, ikm, utf8("Content-Encoding: nonce\0"), 12);
+  const aes = await crypto.subtle.importKey("raw", cek, "AES-GCM", false, ["encrypt"]);
+  const body = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, aes, concat(utf8(text), new Uint8Array([2]))));
+  const head = new Uint8Array(21);
+  head.set(salt); new DataView(head.buffer).setUint32(16, 4096); head[20] = asPub.length;
+  return concat(head, asPub, body);
+}
+
+/** 한 기기에 보내기. 기기가 구독을 끊었으면(404·410) 목록에서 지운다 */
+async function sendPush(sub: any, payload: any) {
+  try {
+    const res = await fetch(sub.endpoint, {
+      method: "POST", signal: AbortSignal.timeout(10000),
+      headers: { Authorization: await vapidAuth(sub.endpoint), "Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream", TTL: "3600", Urgency: "high" },
+      body: await encryptPush(sub.p256dh, sub.auth, JSON.stringify(payload)),
+    });
+    if (res.ok) return { ok: true, status: res.status, msg: "" };
+    const msg = (await res.text()).slice(0, 200);
+    if (res.status === 404 || res.status === 410) await run(db.from("push_subs").delete().eq("endpoint", sub.endpoint));
+    return { ok: false, status: res.status, msg };
+  } catch (e: any) { return { ok: false, status: 0, msg: String(e && e.message || e) }; }
+}
+async function pushAll(subs: any[], payload: any) {
+  const results = await Promise.all(subs.map((s) => sendPush(s, payload)));
+  results.forEach((r, i) => { if (!r.ok) console.error("휴대폰 알림 실패", r.status, r.msg, String(subs[i].endpoint).slice(0, 60)); });
+  return { sent: results.filter((r) => r.ok).length, results };
+}
+
+async function actPushKey() {
+  return { publicKey: (await vapid()).pub, devices: (await run<any[]>(db.from("push_subs").select("endpoint"))).length };
+}
+async function actPushSub(req: any) {
+  const s = req.sub || {}, keys = s.keys || {};
+  if (!/^https:\/\//.test(String(s.endpoint || "")) || !keys.p256dh || !keys.auth) throw new Error("알림 구독 정보가 올바르지 않습니다.");
+  await run(db.from("push_subs").upsert({ endpoint: s.endpoint, p256dh: keys.p256dh, auth: keys.auth, created_at: nowStr(), ua: String(req.ua || "").slice(0, 160) }));
+  return { devices: (await run<any[]>(db.from("push_subs").select("endpoint"))).length };
+}
+async function actPushUnsub(req: any) {
+  if (req.endpoint) await run(db.from("push_subs").delete().eq("endpoint", String(req.endpoint)));
+  return {};
+}
+async function actPushTest(req: any) {
+  let q = db.from("push_subs").select("*");
+  if (req.endpoint) q = q.eq("endpoint", String(req.endpoint));
+  const subs = await run<any[]>(q);
+  if (!subs.length) throw new Error("알림을 받을 기기가 등록되어 있지 않습니다. 설정에서 '휴대폰 알림 받기'를 먼저 눌러 주세요.");
+  const r = await pushAll(subs, { title: "🔔 Lobby2 알림 시험", body: "카일님, 휴대폰 알림이 잘 도착했습니다.", tag: "alarm-test" });
+  const fail = r.results.filter((x) => !x.ok)[0];
+  return { sent: r.sent, total: subs.length, error: fail ? "(" + fail.status + ") " + fail.msg : "" };
+}
+
 // ───────────────────────── 수정&삭제 탭 ─────────────────────────
 async function actList(req: any) {
   const deleted = !!req.deleted;
@@ -1091,6 +1315,7 @@ async function actUpdate(req: any) {
     if (!(k in fields)) return;
     let v = fields[k];
     if (k === "금액") v = toNum(v);
+    else if (k === "알림") v = alarmVal(v);
     else if (k === "인물" || k === "태그") v = listStr(v);
     else v = mask(String(v == null ? "" : v));
     if (k === "유형" && TYPES.indexOf(v) < 0) return;
@@ -1102,8 +1327,13 @@ async function actUpdate(req: any) {
     }
   });
   if (!hist.length) return { changed: 0 };
+  // 날짜·시각·상태·알림이 바뀌면 다음 알림 시각을 다시 계산한다 (완료·취소하면 알림도 꺼진다)
+  if (["대상일", "대상시각", "상태", "알림"].some((k) => COL[k] in patch)) {
+    const at = alarmAtOf(cur);
+    if (at !== cur.알림시각) { patch.alarm_at = at; cur.알림시각 = at; }
+  }
   patch.updated_at = now; cur.수정일시 = now;
-  await run(db.from("records").update(patch).eq("id", String(req.id)));
+  await alarmSafe(run(db.from("records").update(patch).eq("id", String(req.id))));
   await run(db.from("history").insert(hist));
   return { changed: hist.length, row: cur };
 }
@@ -1112,18 +1342,19 @@ async function actDelete(req: any) {
   const cur = await getRecord(req.id);
   if (cur.상태 === "삭제") return { already: true };
   const now = nowStr();
-  await run(db.from("records").update({ status: "삭제", deleted_at: now }).eq("id", String(req.id)));
+  await run(db.from("records").update({ status: "삭제", deleted_at: now, ...(cur.알림시각 ? { alarm_at: "" } : {}) }).eq("id", String(req.id)));
   await run(db.from("history").insert({ at: now, record_id: String(req.id), field: "상태", old_value: cur.상태, new_value: "삭제", via: "화면" }));
   return { deleted: req.id };
 }
 
 async function actRestore(req: any) {
-  await getRecord(req.id);
+  const cur = await getRecord(req.id);
   const last = (await run<any[]>(db.from("history").select("old_value").eq("record_id", String(req.id)).eq("field", "상태").eq("new_value", "삭제")
     .order("id", { ascending: false }).limit(1)))[0];
   const prev = (last && last.old_value) || "정상";
   const now = nowStr();
-  await run(db.from("records").update({ status: prev, deleted_at: "" }).eq("id", String(req.id)));
+  const at = alarmAtOf({ ...cur, 상태: prev });
+  await run(db.from("records").update({ status: prev, deleted_at: "", ...(at !== cur.알림시각 ? { alarm_at: at } : {}) }).eq("id", String(req.id)));
   await run(db.from("history").insert({ at: now, record_id: String(req.id), field: "상태", old_value: "삭제", new_value: prev, via: "복구" }));
   return { restored: req.id, 상태: prev };
 }

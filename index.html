@@ -299,6 +299,49 @@ body.speaking .sound i{animation-name:sound;animation-duration:1.15s;animation-t
 .foot-link{background:none;border:0;color:var(--blue);font-size:13px;padding:10px;justify-self:center}
 .empty{text-align:center;color:var(--faint);font-size:13.5px;padding:28px 0}
 
+/* ── 일정 알림: 다가오는 알림 카드 · 울리는 화면 ── */
+.chip.al{gap:4px;color:#FFE2B8;border-color:rgba(241,211,168,.55);background:linear-gradient(180deg,rgba(221,169,110,.30),rgba(221,169,110,.10))}
+.bell-ic{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2.2;flex:0 0 auto}
+.alarms{gap:2px;border-color:rgba(221,169,110,.6);background:linear-gradient(165deg,rgba(221,169,110,.22),rgba(120,150,142,.08)),var(--surface);box-shadow:0 0 0 3px var(--brass-soft),0 4px 12px rgba(0,0,0,.25)}
+.alarms h3{margin:0 0 4px;font-size:15px;font-weight:500;display:flex;align-items:center;gap:8px;letter-spacing:.08em}
+.alarms h3 .bell-ic{width:18px;height:18px;stroke-width:1.8;color:var(--brass-lite);filter:drop-shadow(0 0 6px rgba(241,211,168,.55))}
+.alarms h3 .n{font-family:var(--mono);color:var(--brass-lite)}
+.al-row{display:flex;align-items:center;gap:12px;padding:9px 2px;border-top:1px solid rgba(226,240,235,.22)}
+.alarms h3+.al-row{border-top:0}
+.al-row time{display:grid;min-width:62px;font-family:var(--mono);font-size:11px;line-height:1.25;color:var(--faint)}
+.al-row time b{font-size:17px;font-weight:500;color:var(--brass-lite);font-variant-numeric:tabular-nums}
+.al-row .tx{flex:1;min-width:0;font-size:15px;line-height:1.35;overflow-wrap:anywhere}
+.al-row .tx small{display:block;font-size:12px;color:var(--muted)}
+.alarm-bg{position:fixed;inset:0;z-index:40;display:grid;place-items:center;padding:calc(20px + var(--sat)) 16px calc(20px + var(--sab));overflow-y:auto;
+  background:radial-gradient(ellipse 90% 70% at 50% 38%,rgba(70,48,32,.97),rgba(12,9,7,.98))}
+.alarm-card{width:min(420px,100%);display:grid;justify-items:center;gap:6px;text-align:center;padding:30px 20px 18px;border-radius:24px;
+  background:radial-gradient(rgba(221,169,110,.10) 1px,transparent 1.4px) 0 0/14px 14px,linear-gradient(170deg,rgba(221,169,110,.18),rgba(102,220,234,.05)),#22302E;
+  border:1px solid rgba(241,211,168,.5);box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 0 0 6px rgba(221,169,110,.08),0 24px 60px rgba(0,0,0,.65)}
+.bell{position:relative;width:116px;height:116px;border-radius:50%;display:grid;place-items:center;margin-bottom:12px;
+  background:radial-gradient(circle at 34% 26%,#FFEBD0 0%,#E0AE74 22%,#9A6534 58%,#3E2614 100%);
+  box-shadow:inset 0 0 0 2px rgba(255,233,200,.6),inset 0 -10px 20px rgba(255,196,130,.3),0 0 44px rgba(221,169,110,.6)}
+.bell::before,.bell::after{content:"";position:absolute;inset:-10px;border-radius:50%;border:2px solid rgba(241,211,168,.65);animation:bellWave 1.8s ease-out infinite}
+.bell::after{border-color:rgba(102,220,234,.6);animation-delay:.9s}
+@keyframes bellWave{from{transform:scale(.88);opacity:.95}to{transform:scale(1.6);opacity:0}}
+.bell svg{width:54px;height:54px;stroke:#2A1809;fill:rgba(255,242,220,.6);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;transform-origin:50% 10%;animation:bellSwing 1.3s ease-in-out infinite}
+@keyframes bellSwing{0%,62%,100%{transform:rotate(0)}8%{transform:rotate(18deg)}18%{transform:rotate(-15deg)}28%{transform:rotate(11deg)}38%{transform:rotate(-7deg)}48%{transform:rotate(3deg)}}
+.alarm-bg.quiet .bell::before,.alarm-bg.quiet .bell::after,.alarm-bg.quiet .bell svg{animation:none}
+.alarm-bg.quiet .bell::before,.alarm-bg.quiet .bell::after{opacity:0}
+@media (prefers-reduced-motion:reduce){.bell::before,.bell::after,.bell svg{animation:none}}
+.alarm-kind{font-family:var(--mono);font-size:12px;letter-spacing:.14em;color:var(--cyan)}
+.alarm-when{display:grid;gap:0;color:var(--brass-lite);font-size:15px}
+.alarm-when b{font-family:var(--mono);font-weight:500;font-size:44px;line-height:1.1;color:#FFF3E0;letter-spacing:.02em;font-variant-numeric:tabular-nums;text-shadow:0 0 22px rgba(221,169,110,.45)}
+.alarm-title{font-size:24px;line-height:1.4;font-weight:700;color:#FBE9CF;margin-top:6px;word-break:keep-all;overflow-wrap:anywhere}
+.alarm-place{font-size:14px;color:var(--muted)}
+.alarm-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;margin-top:16px}
+.alarm-btns .btn{height:46px;font-size:15px}
+.alarm-btns .btn.pri{grid-column:1/-1;height:54px;font-size:17px}
+.alarm-more{font-size:12.5px;color:var(--faint);min-height:18px}
+.sheet h3{margin:8px 0 -4px;font-size:14px;font-weight:500;color:var(--brass-lite);display:flex;align-items:center;gap:6px;letter-spacing:.06em;border-top:1px solid var(--line);padding-top:14px}
+.sheet h3 .bell-ic{width:16px;height:16px}
+.sheet .pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.push-state{font-size:12.5px;color:var(--muted)} .push-state.on{color:var(--ok)} .push-state.bad{color:#FFC2B8}
+
 /* ── 설정 · 토스트 · 로딩 ── */
 .sheet-bg{position:fixed;inset:0;background:rgba(8,12,11,.6);display:grid;align-items:end;z-index:20}
 .sheet{background:linear-gradient(180deg,#3A504C,#263533);border-radius:18px 18px 0 0;padding:18px 18px calc(18px + var(--sab));display:grid;gap:14px;max-width:560px;width:100%;margin:0 auto;border-top:1px solid rgba(255,255,255,.3);max-height:92vh;overflow-y:auto}
@@ -365,6 +408,7 @@ body.speaking .sound i{animation-name:sound;animation-duration:1.15s;animation-t
         <button>이번 주 일정 알려 줘</button>
         <button>CR-747 승인원 검사 항목 알려 줘</button>
       </div>
+      <div class="card alarms" id="alarmCard" hidden></div>
       <div class="card todos" id="todoCard" hidden></div>
       <div class="typebox">
         <textarea id="txtTalk" rows="1" placeholder="기록·질문·예약을 입력"></textarea>
@@ -481,10 +525,48 @@ body.speaking .sound i{animation-name:sound;animation-duration:1.15s;animation-t
     <label class="check"><input type="checkbox" id="sAuto" checked>말이 끝나면 자동으로 정리·질문</label>
     <label class="check"><input type="checkbox" id="sSpeak" checked>답변을 음성으로 읽기</label>
     <label class="check"><input type="checkbox" id="sFollow" checked>호출 후 대답이 끝나면 이어서 듣기</label>
+    <h3><svg class="bell-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>일정 알림</h3>
+    <p>“내일 3시 미라셀 미팅, 30분 전에 알려 줘”처럼 말하면 그 시각에 소리와 음성으로 알려 드립니다.</p>
+    <label class="check"><input type="checkbox" id="sAlarm" checked>앱 화면이 켜져 있으면 알림 소리 울리기</label>
+    <label class="check"><input type="checkbox" id="sAlarmVoice" checked>알림 내용을 음성으로 읽어 주기</label>
+    <div class="pair">
+      <label class="fld"><span>기본 알림 (시각 있는 일정)</span>
+        <select id="sLead"><option value="0">정각</option><option value="5">5분 전</option><option value="10">10분 전</option><option value="30">30분 전</option><option value="60">1시간 전</option></select></label>
+      <label class="fld"><span>알림 소리</span>
+        <select id="sTone"><option value="chime">차임벨</option><option value="marimba">마림바</option><option value="digital">디지털 알람</option></select></label>
+    </div>
+    <div class="btns" style="justify-content:flex-start">
+      <button class="btn sm" id="sTonePlay">소리 미리 듣기</button>
+      <button class="btn sm" id="sAlarmTest">알림 화면 시험</button>
+    </div>
+    <div class="fld"><span>휴대폰 알림 — 앱을 닫았거나 화면이 잠겨 있어도 알려 드립니다</span>
+      <div class="btns" style="justify-content:flex-start">
+        <button class="btn sm pri" id="sPush">휴대폰 알림 받기</button>
+        <button class="btn sm" id="sPushTest" hidden>시험 알림 보내기</button>
+      </div>
+      <div class="push-state" id="pushState"></div>
+    </div>
     <div class="btns">
       <button class="btn ghost" id="sDemo">데모로 둘러보기</button>
       <button class="btn pri" id="sSave">저장</button>
     </div>
+  </div>
+</div>
+
+<!-- 일정 알림이 울리는 화면 -->
+<div class="alarm-bg" id="alarmBox" hidden role="alertdialog" aria-modal="true" aria-labelledby="alarmTitle" aria-describedby="alarmWhen">
+  <div class="alarm-card">
+    <div class="bell" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+    <div class="alarm-kind" id="alarmKind">일정 알림</div>
+    <div class="alarm-when" id="alarmWhen"></div>
+    <div class="alarm-title" id="alarmTitle"></div>
+    <div class="alarm-place" id="alarmPlace"></div>
+    <div class="alarm-btns">
+      <button class="btn" data-snooze="5">5분 뒤 다시</button>
+      <button class="btn" data-snooze="10">10분 뒤 다시</button>
+      <button class="btn pri" id="alarmOk">확인</button>
+    </div>
+    <div class="alarm-more" id="alarmMore"></div>
   </div>
 </div>
 
@@ -508,6 +590,7 @@ const S = {
   url: store.get('url', DEFAULT_URL), pin: store.get('pin', ''),
   rate: store.get('rate', 1), auto: store.get('auto', true), speak: store.get('speak', true),
   follow: store.get('follow', true), wakeWords: store.get('wake', DEFAULT_WAKE),
+  alarmOn: store.get('alarm', true), alarmVoice: store.get('alarmVoice', true), lead: store.get('lead', 10), tone: store.get('tone', 'chime'),
   types: ['일상','지출','일정','업무일정','정보','특이점','아이디어','할일'],
   states: ['정상','예정','완료','취소'],
   categories: [], editPeriod: 'week', showDeleted: false, openId: null, confirmDel: null, list: [],
@@ -528,7 +611,7 @@ function showUsage(u) {
 }
 
 // 읽기만 하는 요청은 서버가 일시적으로 HTML 오류 페이지를 돌려줘도 한 번 더 시도한다 (저장·수정·삭제는 중복 방지를 위해 재시도하지 않음)
-const RETRY_OK = ['talk', 'ask', 'init', 'list', 'docs', 'readDoc', 'reports', 'todos', 'brief', 'readReport'];
+const RETRY_OK = ['talk', 'ask', 'init', 'list', 'docs', 'readDoc', 'reports', 'todos', 'brief', 'readReport', 'alarms', 'pushKey'];
 async function api(action, data = {}) {
   if (isDemo()) { const r = await Demo.handle(action, data); r.usage = Demo.usage(); showUsage(r.usage); return r; }
   if (!S.url) { openSettings(); throw new Error('설정에서 서버 주소를 먼저 입력해 주세요.'); }
@@ -678,7 +761,21 @@ function yesNo(t) {
 /* ═════════════ 공통 렌더 조각 ═════════════ */
 function chipsHTML(r) {
   const st = r.상태 && r.상태 !== '정상' ? `<span class="chip st-${esc(r.상태)}">${esc(r.상태)}</span>` : '';
-  return `<span class="chip t">${esc(r.유형)}</span><span class="chip c">${esc(r.분류)}</span>${st}`;
+  const al = r.상태 === '예정' && r.알림 != null && r.알림 !== '' ? `<span class="chip al">${BELL}${esc(alarmLabel(r.알림))}</span>` : '';
+  return `<span class="chip t">${esc(r.유형)}</span><span class="chip c">${esc(r.분류)}</span>${st}${al}`;
+}
+const BELL = '<svg class="bell-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>';
+/* 알림 값: '' = 없음, '0' = 정각, '10' = 10분 전 … */
+const ALARM_OPTS = [['', '알림 없음'], ['0', '정각'], ['5', '5분 전'], ['10', '10분 전'], ['30', '30분 전'], ['60', '1시간 전'], ['120', '2시간 전'], ['1440', '하루 전']];
+function alarmLabel(v) {
+  if (v === '' || v == null) return '알림 없음';
+  const n = Number(v);
+  return n === 0 ? '정각' : n % 1440 === 0 ? (n === 1440 ? '하루' : n / 1440 + '일') + ' 전' : n % 60 === 0 ? n / 60 + '시간 전' : n + '분 전';
+}
+function alarmOptions(cur) {
+  cur = cur == null ? '' : String(cur);
+  const list = ALARM_OPTS.some(o => o[0] === cur) ? ALARM_OPTS : [...ALARM_OPTS, [cur, alarmLabel(cur)]];
+  return list.map(([v, l]) => `<option value="${v}"${v === cur ? ' selected' : ''}>${l}</option>`).join('');
 }
 function shortDate(d) { return d ? String(d).slice(5) : ''; }
 function optionList(list, cur) { return list.map(v => `<option${v === cur ? ' selected' : ''}>${esc(v)}</option>`).join(''); }
@@ -710,8 +807,9 @@ function confirmHTML(cid) {
         <label class="fld"><span>분류</span><select data-k="분류">${catOptions(it.분류)}</select></label>
         <label class="fld"><span>대상일</span><input type="date" data-k="대상일" value="${esc(it.대상일)}"></label>
         <label class="fld"><span>시각</span><input type="time" data-k="대상시각" value="${esc(it.대상시각)}"></label>
+        <label class="fld"><span>알림</span><select data-k="알림">${alarmOptions(it.알림)}</select></label>
         <label class="fld"><span>금액(원)</span><input inputmode="numeric" data-k="금액" value="${it.금액 ?? ''}"></label>
-        <label class="fld"><span>인물</span><input data-k="인물" value="${esc(it.인물)}"></label>
+        <label class="fld wide"><span>인물</span><input data-k="인물" value="${esc(it.인물)}"></label>
         <label class="fld wide"><span>내용</span><textarea data-k="내용" rows="2">${esc(it.내용)}</textarea></label>
       </div>
       ${it.새분류 ? `<label class="check"><input type="checkbox" data-k="새분류승인" checked>새 분류 “${esc(it.분류)}” 추가 ${it.분류설명 ? '— ' + esc(it.분류설명) : ''}</label>` : ''}
@@ -742,9 +840,10 @@ async function saveCard(cid) {
       $('#txtLog').value = ''; $('#liveLog').textContent = ''; $('#liveLog').classList.add('dim');
     } else if (box) box.innerHTML = `<div class="card saved">✓ 저장했습니다 · ${r.ids.length}건</div>`;
     renderRecent(r.recent);
-    toast(`저장했습니다 (${r.ids.length}건)`);
-    refreshCategories(); loadTodos();
-    return true;
+    const al = (r.alarms || [])[0];
+    toast(`저장했습니다 (${r.ids.length}건)` + (al ? ` · 🔔 ${alarmAtWords(al.알림시각)}에 알려 드릴게요` : ''));
+    refreshCategories(); loadTodos(); Alarm.load();
+    return r;
   } catch (e) { toast(e.message, true); if (btn) btn.disabled = false; return false; }
 }
 function cancelCard(cid) {
@@ -776,7 +875,7 @@ async function doParse() {
   if (!text) return;
   $('#busyLog').hidden = false; $('#sendLog').disabled = true; $('#confirmArea').innerHTML = '';
   try {
-    const r = await api('parse', { text });
+    const r = await api('parse', { text, alarmLead: S.lead });
     S.cards.log = { raw: r.raw, items: r.items };
     renderCard('log');
     const n = r.items.length, first = r.items[0];
@@ -861,6 +960,7 @@ async function toggleTodo(input) {
   try {
     await api('update', { id: input.dataset.todo, fields: { 상태: done ? '완료' : '예정' } });
     toast(done ? '완료로 표시했습니다' : '다시 할 일로 되돌렸습니다');
+    Alarm.load();
   } catch (e) { input.checked = !done; row.classList.toggle('done', !done); toast(e.message, true); }
 }
 function briefHTML(b) {
@@ -888,7 +988,7 @@ async function talk(text, voice = false) {
   $('#thread').prepend(wrap);
   Wake.setState('think', text);
   let r;
-  try { r = await api('talk', { text, history: S.history.slice(-4) }); }
+  try { r = await api('talk', { text, history: S.history.slice(-4), alarmLead: S.lead }); }
   catch (e) {
     wrap.querySelector('.busy').outerHTML = `<div class="a-bub"><div class="speak">${esc(e.message)}</div></div>`;
     if (voice) await speakAsync('죄송합니다. ' + e.message);
@@ -918,7 +1018,11 @@ async function talk(text, voice = false) {
     if (voice && SR) {
       Wake.setState('listen', '네 / 아니오');
       const yn = yesNo(await hear({ startTimeout: 5000, max: 6000, onText: t => Wake.setState('listen', t) }));
-      if (yn === true) { if (await saveCard(cid)) await speakAsync('저장했습니다.'); }
+      if (yn === true) {
+        const sv = await saveCard(cid);
+        const al = sv && (sv.alarms || [])[0];
+        if (sv) await speakAsync('저장했습니다.' + (al ? ` ${alarmAtWords(al.알림시각)}에 알려 드릴게요.` : ''));
+      }
       else if (yn === false) { cancelCard(cid); await speakAsync('저장하지 않았습니다.'); }
       else await speakAsync('화면에서 확인 후 저장해 주세요.');
     }
@@ -1306,10 +1410,11 @@ function renderList() {
         <label class="fld"><span>분류</span><select data-k="분류">${catOptions(r.분류)}</select></label>
         <label class="fld"><span>대상일</span><input type="date" data-k="대상일" value="${esc(r.대상일)}"></label>
         <label class="fld"><span>시각</span><input type="time" data-k="대상시각" value="${esc(r.대상시각)}"></label>
-        <label class="fld"><span>금액(원)</span><input inputmode="numeric" data-k="금액" value="${r.금액 ?? ''}"></label>
+        <label class="fld"><span>알림</span><select data-k="알림">${alarmOptions(r.알림)}</select></label>
         <label class="fld"><span>상태</span><select data-k="상태">${optionList(S.states, r.상태)}</select></label>
+        <label class="fld"><span>금액(원)</span><input inputmode="numeric" data-k="금액" value="${r.금액 ?? ''}"></label>
         <label class="fld"><span>인물</span><input data-k="인물" value="${esc(r.인물)}"></label>
-        <label class="fld"><span>장소</span><input data-k="장소" value="${esc(r.장소)}"></label>
+        <label class="fld wide"><span>장소</span><input data-k="장소" value="${esc(r.장소)}"></label>
         <label class="fld wide"><span>내용</span><textarea data-k="내용" rows="3">${esc(r.내용)}</textarea></label>
         <label class="fld wide"><span>태그</span><input data-k="태그" value="${esc(r.태그)}"></label>
         <label class="fld wide"><span>원문 (말씀하신 그대로)</span><input readonly value="${esc(r.원문)}"></label>
@@ -1333,13 +1438,14 @@ async function doUpdate(id, btn) {
     if (i >= 0 && r.row) S.list[i] = r.row;
     S.openId = null; renderList();
     toast(`수정했습니다 (${r.changed}칸)`);
+    Alarm.load();
   } catch (e) { toast(e.message, true); btn.disabled = false; }
 }
 async function doDelete(id) {
   try {
     await api('delete', { id });
     S.list = S.list.filter(x => x.ID !== id); S.openId = null; S.confirmDel = null;
-    renderList(); toast('삭제했습니다');
+    renderList(); toast('삭제했습니다'); Alarm.load();
     $('#editCount').textContent = `${S.list.length}건`;
   } catch (e) { toast(e.message, true); }
 }
@@ -1350,6 +1456,272 @@ async function doRestore(id) {
     toast(`복구했습니다 (상태: ${r.상태})`);
   } catch (e) { toast(e.message, true); }
 }
+
+/* ═════════════ 일정 알림: 소리 · 울리는 화면 · 휴대폰 알림 ═════════════ */
+// 서버가 계산해 둔 "다음 알림 시각"(한국 시간 글자)을 미리 받아 두고, 그 시각이 되면 소리·진동·음성으로 알린다.
+// 앱이 꺼져 있거나 화면이 잠겨 있을 때는 서버가 휴대폰 알림(Web Push)으로 대신 알린다.
+const kstTime = s => Date.parse(String(s).replace(' ', 'T') + ':00+09:00');
+const kstStr = ms => new Date(ms + 9 * 3600000).toISOString().slice(0, 16).replace('T', ' ');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function spokenTime(hm) {
+  const [h, m] = String(hm).split(':').map(Number);
+  return (h === 0 ? '밤 12시' : h < 12 ? `오전 ${h}시` : h === 12 ? '낮 12시' : `오후 ${h - 12}시`) + (m ? ` ${m}분` : '');
+}
+function dayWord(d) {
+  const t = kstStr(Date.now()).slice(0, 10), tm = kstStr(Date.now() + 86400000).slice(0, 10);
+  return d === t ? '오늘' : d === tm ? '내일' : `${Number(d.slice(5, 7))}월 ${Number(d.slice(8, 10))}일`;
+}
+/** "2026-10-08 14:50" → "내일 오후 2시 50분" (오늘이면 날짜 생략) */
+function alarmAtWords(at) { const d = dayWord(at.slice(0, 10)); return (d === '오늘' ? '' : d + ' ') + spokenTime(at.slice(11, 16)); }
+function spanWords(min) {
+  min = Math.abs(min);
+  return min >= 1440 ? Math.round(min / 1440) + '일' : min >= 60 ? Math.floor(min / 60) + '시간' + (min % 60 ? ' ' + (min % 60) + '분' : '') : min + '분';
+}
+const eventTime = a => kstTime(a.대상일 + ' ' + (a.대상시각 || '09:00'));
+const kindWord = a => a.유형 === '할일' ? '할 일' : a.유형 === '업무일정' ? '업무 일정' : '일정';
+function alarmSpeech(a) {
+  const m = Math.round((eventTime(a) - Date.now()) / 60000);
+  const d = dayWord(a.대상일), when = (d === '오늘' ? '' : d + ' ') + (a.대상시각 ? spokenTime(a.대상시각) : '');
+  if (m >= 1) return `카일님, ${spanWords(m)} 뒤 ${when ? when + '에 ' : ''}${a.제목} ${kindWord(a)}이 있습니다.` + (a.장소 ? ` 장소는 ${a.장소}입니다.` : '');
+  if (m > -2) return `카일님, ${a.제목} 시간입니다.` + (a.장소 ? ` 장소는 ${a.장소}입니다.` : '');
+  return `카일님, ${a.제목} 시간이 ${spanWords(m)} 지났습니다.`;
+}
+
+/* 알림 소리: 파일 없이 Web Audio로 직접 만든다 */
+const Tone = {
+  ctx() {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state !== 'running') actx.resume().catch(() => {});
+    return actx;
+  },
+  /** 화면을 처음 누를 때 소리 장치를 깨워 둔다 (모바일은 사용자가 한 번 눌러야 소리를 낼 수 있음) */
+  unlock() {
+    try { const ac = this.ctx(), b = ac.createBuffer(1, 1, 22050), src = ac.createBufferSource(); src.buffer = b; src.connect(ac.destination); src.start(0); } catch {}
+  },
+  note(ac, t, f, dur, vol, type, partials) {
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    g.connect(ac.destination);
+    partials.forEach(([mul, amp]) => {
+      const o = ac.createOscillator(), pg = ac.createGain();
+      o.type = type; o.frequency.value = f * mul; pg.gain.value = amp;
+      o.connect(pg).connect(g); o.start(t); o.stop(t + dur + 0.05);
+    });
+  },
+  /** 한 번 울리고, 울리는 데 걸리는 시간(ms)을 돌려준다 */
+  play(name = S.tone) {
+    try {
+      const ac = this.ctx(), t = ac.currentTime + 0.05;
+      if (name === 'digital') {                       // 삐삐삐삐 — 탁상시계 알람
+        for (let k = 0; k < 2; k++) for (let i = 0; i < 4; i++) this.note(ac, t + k * 0.75 + i * 0.13, 2093, 0.09, 0.12, 'square', [[1, 1]]);
+        return 1400;
+      }
+      if (name === 'marimba') {                       // 통통 튀는 마림바 다섯 음
+        [784, 1047, 1319, 1047, 1568].forEach((f, i) => this.note(ac, t + i * 0.15, f, 0.55, 0.32, 'sine', [[1, 1], [3.9, 0.22], [9.2, 0.05]]));
+        return 1300;
+      }
+      [1319, 1047, 1568].forEach((f, i) => this.note(ac, t + i * 0.42, f, 1.7, 0.26, 'sine', [[1, 1], [2, 0.38], [3.01, 0.16], [4.2, 0.07]]));   // 띵-동-댕 차임벨
+      return 2300;
+    } catch { return 0; }
+  },
+};
+
+const Alarm = {
+  list: [], cur: null, queue: [], token: null, lastLoad: 0, tickT: null, nextT: null, warned: false,
+  key: a => a.ID + '|' + a.알림시각,
+  done() { return store.get('alarmDone', {}); },
+  isDone(a) { return !!this.done()[this.key(a)]; },
+  markDone(a) {                                       // 같은 알림을 두 번 울리지 않도록 이 기기에 기억 (3일 지나면 지움)
+    const d = this.done(), now = Date.now();
+    Object.keys(d).forEach(k => { if (now - d[k] > 3 * 86400000) delete d[k]; });
+    d[this.key(a)] = now; store.set('alarmDone', d);
+  },
+  async load() {
+    if (!S.url || (!isDemo() && !S.pin)) return;
+    this.lastLoad = Date.now();
+    try {
+      const r = await api('alarms');
+      this.list = r.alarms || [];
+      if (r.needsUpdate && !this.warned) { this.warned = true; toast('일정 알림을 쓰려면 서버 표 업데이트(alarms.sql)가 필요합니다', true); }
+      renderAlarms(); this.check();
+    } catch {}
+  },
+  start() { clearInterval(this.tickT); this.tickT = setInterval(() => this.check(), 15000); },
+  check() {
+    const now = Date.now();
+    if (now - this.lastLoad > 5 * 60000) return void this.load();      // 5분마다 새로 받아 둔다 (다른 기기에서 넣은 일정 포함)
+    this.list.filter(a => { const t = kstTime(a.알림시각); return t <= now + 1000 && t > now - 60 * 60000 && !this.isDone(a); }).forEach(a => this.ring(a));
+    clearTimeout(this.nextT);                          // 15초 안에 울릴 알림은 정확한 시각에 맞춰 둔다
+    const next = this.list.map(a => kstTime(a.알림시각)).filter(t => t > now).sort((x, y) => x - y)[0];
+    if (next && next - now < 16000) this.nextT = setTimeout(() => this.check(), next - now + 50);
+    renderAlarms();
+  },
+  ring(a, opt = {}) {
+    if (!opt.test) { if (this.isDone(a)) return; this.markDone(a); if (!S.alarmOn) return; }
+    if (this.cur) {
+      if (!this.queue.some(x => this.key(x) === this.key(a))) this.queue.push(a);
+      $('#alarmMore').textContent = `알림 ${this.queue.length}개가 더 기다리고 있습니다`;
+      return;
+    }
+    this.cur = a; this.show(a); this.sound(a);
+  },
+  show(a) {
+    const box = $('#alarmBox'), m = Math.round((eventTime(a) - Date.now()) / 60000);
+    const rel = m >= 1 ? spanWords(m) + ' 뒤' : m > -2 ? '지금' : spanWords(m) + ' 지남';
+    $('#alarmKind').textContent = a.test ? '알림 시험' : kindWord(a) + ' 알림';
+    $('#alarmWhen').innerHTML = `<b>${esc(a.대상시각 || '종일')}</b><span>${esc(dayWord(a.대상일))} · ${esc(rel)}</span>`;
+    $('#alarmTitle').textContent = a.제목;
+    $('#alarmPlace').textContent = a.장소 ? '📍 ' + a.장소 : '';
+    $('#alarmMore').textContent = this.queue.length ? `알림 ${this.queue.length}개가 더 기다리고 있습니다` : '';
+    box.classList.remove('quiet'); box.hidden = false;
+    setTimeout(() => $('#alarmOk').focus(), 50);
+  },
+  async sound(a) {
+    const token = this.token = {}, alive = () => this.token === token;
+    Wake.pause(); stopSpeaking();
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {}   // 아이폰 무음 스위치가 켜져 있어도 알림은 들리게
+    const buzz = () => { try { navigator.vibrate && navigator.vibrate([400, 200, 400, 200, 800]); } catch {} };
+    const tone = a.tone || S.tone;
+    buzz();
+    await sleep(Tone.play(tone) + 300);
+    if (alive() && (a.test ? a.voice : S.alarmVoice)) await speakAsync(alarmSpeech(a), true);
+    const until = Date.now() + 60000;                 // 1분 동안 울리고, 그 뒤에는 소리만 멈추고 화면은 남겨 둔다
+    while (alive() && Date.now() < until) { await sleep(1600); if (!alive()) break; buzz(); await sleep(Tone.play(tone)); }
+    if (alive()) { $('#alarmBox').classList.add('quiet'); this.quiet(); }
+  },
+  quiet() {
+    try { if (navigator.audioSession) navigator.audioSession.type = 'auto'; } catch {}
+    try { navigator.vibrate && navigator.vibrate(0); } catch {}
+    Wake.resume();
+  },
+  async dismiss(snooze = 0) {
+    const a = this.cur; if (!a) return;
+    this.token = null; this.cur = null; stopSpeaking(); this.quiet();
+    $('#alarmBox').hidden = true;
+    closeNotices(a);
+    if (a.test) { if (snooze) toast(`실제 알림이면 ${snooze}분 뒤에 다시 울립니다`); }
+    else {
+      try {
+        const r = await api('alarmAck', { id: a.ID, at: a.알림시각, snooze });
+        this.list = this.list.filter(x => this.key(x) !== this.key(a));
+        if (snooze && r.alarm_at) { this.list.push({ ...a, 알림시각: r.alarm_at }); toast(`${snooze}분 뒤에 다시 알려 드릴게요`); }
+        renderAlarms();
+      } catch (e) { toast(e.message, true); }
+    }
+    const next = this.queue.shift();
+    if (next) setTimeout(() => { if (!this.cur) { this.cur = next; this.show(next); this.sound(next); } }, 400);
+  },
+  test() {
+    const ev = Date.now() + 10 * 60000, at = kstStr(ev);
+    $('#settings').hidden = true;
+    this.ring({ ID: 'TEST', 제목: '미라셀 미팅', 유형: '업무일정', 대상일: at.slice(0, 10), 대상시각: at.slice(11, 16), 장소: '본사 3층 회의실',
+      알림: '10', 알림시각: kstStr(Date.now()), test: true, tone: $('#sTone').value, voice: $('#sAlarmVoice').checked }, { test: true });
+  },
+};
+/** 알림을 확인하면 같은 내용의 휴대폰 알림도 알림 센터에서 지운다 */
+function closeNotices(a) {
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.getRegistration().then(reg => reg && reg.getNotifications({ tag: 'alarm-' + a.ID }))
+    .then(ns => (ns || []).forEach(n => n.close())).catch(() => {});
+}
+function renderAlarms() {
+  const box = $('#alarmCard'), now = Date.now();
+  const list = Alarm.list.filter(a => kstTime(a.알림시각) > now - 60000).sort((x, y) => x.알림시각.localeCompare(y.알림시각));
+  if (!list.length) { box.hidden = true; box.dataset.sig = ''; return; }
+  const sig = list.map(Alarm.key).join(',') + kstStr(now).slice(0, 10);
+  if (box.dataset.sig === sig && !box.hidden) return;             // 바뀐 게 없으면 다시 그리지 않는다(15초마다 확인하므로)
+  box.dataset.sig = sig;
+  box.innerHTML = `<h3>${BELL}다가오는 알림 <span class="n">${list.length}</span></h3>` + list.slice(0, 5).map(a => `
+    <div class="al-row"><time>${esc(dayWord(a.알림시각.slice(0, 10)))}<b>${esc(a.알림시각.slice(11, 16))}</b></time>
+      <span class="tx">${esc(a.제목)}<small>${a.대상시각 ? esc(a.대상시각) + ' ' + esc(kindWord(a)) : '종일 ' + esc(kindWord(a))} · ${esc(alarmLabel(a.알림))} 알림</small></span>
+      <button class="btn sm ghost" data-alarm-off="${esc(a.ID)}">끄기</button></div>`).join('');
+  box.hidden = false;
+}
+async function alarmOff(id) {
+  try {
+    await api('update', { id, fields: { 알림: '' } });
+    Alarm.list = Alarm.list.filter(a => a.ID !== id); renderAlarms();
+    toast('알림을 껐습니다');
+  } catch (e) { toast(e.message, true); }
+}
+
+/* 휴대폰 알림(Web Push): 앱이 꺼져 있어도 서버가 보낸 알림을 받는다 */
+const b64uBytes = s => { const t = s.replace(/-/g, '+').replace(/_/g, '/'); return Uint8Array.from(atob(t + '==='.slice((t.length + 3) % 4)), c => c.charCodeAt(0)); };
+const bytesB64u = b => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const Push = {
+  on: false,
+  ok: () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && location.protocol === 'https:',
+  ios: /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1),
+  standalone: () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true,
+  async sub() {
+    if (!this.ok()) return null;
+    const reg = await navigator.serviceWorker.getRegistration();
+    return reg ? reg.pushManager.getSubscription() : null;
+  },
+  async state() {
+    if (isDemo()) return ['데모 모드에서는 휴대폰 알림을 쓸 수 없습니다', 'bad', false];
+    if (this.ios && !this.standalone()) return ['아이폰은 Safari 공유 버튼 → “홈 화면에 추가”로 설치한 Lobby2 앱에서 켤 수 있습니다', 'bad', false];
+    if (!this.ok()) return ['이 브라우저는 휴대폰 알림을 지원하지 않습니다', 'bad', false];
+    if (Notification.permission === 'denied') return ['알림이 차단되어 있습니다. 휴대폰 설정에서 Lobby2 알림을 허용해 주세요', 'bad', false];
+    const s = await this.sub();
+    return s && Notification.permission === 'granted' ? ['✓ 이 기기에서 휴대폰 알림을 받고 있습니다', 'on', true] : ['꺼져 있음 — 켜 두면 앱을 닫아도 알림이 옵니다', '', false];
+  },
+  async render() {
+    const [txt, cls, on] = await this.state();
+    this.on = on;
+    const el = $('#pushState'); el.textContent = txt; el.className = 'push-state ' + cls;
+    $('#sPush').textContent = on ? '휴대폰 알림 끄기' : '휴대폰 알림 받기';
+    $('#sPush').classList.toggle('pri', !on);
+    $('#sPush').disabled = cls === 'bad';
+    $('#sPushTest').hidden = !on;
+  },
+  async subscribe(publicKey) {
+    const reg = await navigator.serviceWorker.ready;
+    const old = await reg.pushManager.getSubscription();
+    const oldKey = old && old.options && old.options.applicationServerKey ? bytesB64u(old.options.applicationServerKey) : '';
+    if (old && oldKey === publicKey) return old;
+    if (old) await old.unsubscribe().catch(() => {});          // 서버 키가 바뀌었으면 새로 구독
+    return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(publicKey) });
+  },
+  async toggle() {
+    const btn = $('#sPush'); btn.disabled = true;
+    try {
+      if (this.on) {
+        const cur = await this.sub();
+        if (cur) { await api('pushUnsub', { endpoint: cur.endpoint }).catch(() => {}); await cur.unsubscribe(); }
+        toast('휴대폰 알림을 껐습니다');
+      } else {
+        const perm = await Notification.requestPermission();   // 버튼을 누른 직후 가장 먼저 물어야 한다(아이폰)
+        if (perm !== 'granted') throw new Error('알림을 허용해야 휴대폰 알림을 받을 수 있습니다');
+        if (!S.pin) throw new Error('접속 암호를 먼저 저장해 주세요');
+        const { publicKey } = await api('pushKey');
+        const sub = await this.subscribe(publicKey);
+        await api('pushSub', { sub: sub.toJSON(), ua: navigator.userAgent });
+        toast('휴대폰 알림을 켰습니다');
+      }
+    } catch (e) { toast(e.message || '휴대폰 알림을 켜지 못했습니다', true); }
+    await this.render();
+  },
+  /** 앱을 열 때: 구독이 살아 있으면 서버 목록에도 다시 알려 둔다(서버 키가 바뀌었으면 새로 구독) */
+  async sync() {
+    if (isDemo() || !this.ok() || Notification.permission !== 'granted') return;
+    try {
+      if (!(await this.sub())) return;
+      const { publicKey } = await api('pushKey');
+      const sub = await this.subscribe(publicKey);
+      await api('pushSub', { sub: sub.toJSON(), ua: navigator.userAgent });
+    } catch {}
+  },
+  async test() {
+    try {
+      const s = await this.sub();
+      const r = await api('pushTest', { endpoint: s && s.endpoint });
+      toast(r.sent ? '시험 알림을 보냈습니다. 잠시 뒤 도착합니다' : '보내지 못했습니다 ' + (r.error || ''), !r.sent);
+    } catch (e) { toast(e.message, true); }
+  },
+};
 
 /* ═════════════ 탭 · 설정 · 기타 ═════════════ */
 function show(v) {
@@ -1365,14 +1737,18 @@ function openSettings() {
   $('#sUrl').value = S.url === 'demo' ? '' : S.url; $('#sPin').value = S.pin;
   $('#sWake').value = S.wakeWords;
   $('#sRate').value = String(S.rate); $('#sAuto').checked = S.auto; $('#sSpeak').checked = S.speak; $('#sFollow').checked = S.follow;
+  $('#sAlarm').checked = S.alarmOn; $('#sAlarmVoice').checked = S.alarmVoice; $('#sLead').value = String(S.lead); $('#sTone').value = S.tone;
   $('#settings').hidden = false;
+  Push.render();
 }
 function saveSettings(demo) {
   S.url = demo ? 'demo' : ($('#sUrl').value.trim() || DEFAULT_URL);
   S.pin = $('#sPin').value.trim(); S.rate = Number($('#sRate').value);
   S.auto = $('#sAuto').checked; S.speak = $('#sSpeak').checked; S.follow = $('#sFollow').checked;
   S.wakeWords = $('#sWake').value.trim() || DEFAULT_WAKE;
+  S.alarmOn = $('#sAlarm').checked; S.alarmVoice = $('#sAlarmVoice').checked; S.lead = Number($('#sLead').value); S.tone = $('#sTone').value;
   ['url', 'pin', 'rate', 'auto', 'speak', 'follow'].forEach(k => store.set(k, S[k]));
+  store.set('alarm', S.alarmOn); store.set('alarmVoice', S.alarmVoice); store.set('lead', S.lead); store.set('tone', S.tone);
   store.set('wake', S.wakeWords);
   Wake.re = wakeRegex();
   $('#settings').hidden = true;
@@ -1389,6 +1765,7 @@ async function boot() {
   $('#demoBadge').hidden = !isDemo();
   const d = new Date(), wd = '일월화수목금토'[d.getDay()];
   $('#today').textContent = `${d.getMonth() + 1}.${d.getDate()} ${wd}`;
+  Alarm.list = []; renderAlarms();
   if (!S.url || (!isDemo() && !S.pin)) { renderRecent([]); openSettings(); return; }
   try {
     const r = await api('init');
@@ -1399,6 +1776,7 @@ async function boot() {
     setUnread(r.unread || 0);
     S.latest = r.latestReport || null;
     updateBanner(); loadTodos();
+    Alarm.load(); Push.sync();
   } catch (e) { toast(e.message, true); }
 }
 
@@ -1503,6 +1881,7 @@ document.addEventListener('click', e => {
   if (d.save) return void saveCard(d.save);
   if (d.cancel) return void cancelCard(d.cancel);
   if (d.drop) { const [cid, i] = d.drop.split(':'); collectCard(cid); S.cards[cid].items.splice(Number(i), 1); return void renderCard(cid); }
+  if (d.alarmOff) return void alarmOff(d.alarmOff);
   if (d.taskOk) return void confirmTask(d.taskOk);
   if (d.taskNo) return void dropTask(d.taskNo);
   if (d.readDoc != null) return void readDoc(Number(d.readDoc));
@@ -1556,9 +1935,26 @@ $('#btnSettings').addEventListener('click', openSettings);
 $('#sSave').addEventListener('click', () => saveSettings(false));
 $('#sDemo').addEventListener('click', () => saveSettings(true));
 $('#settings').addEventListener('click', e => { if (e.target.id === 'settings' && S.url) $('#settings').hidden = true; });
+$('#sTonePlay').addEventListener('click', () => Tone.play($('#sTone').value));
+$('#sAlarmTest').addEventListener('click', () => Alarm.test());
+$('#sPush').addEventListener('click', () => Push.toggle());
+$('#sPushTest').addEventListener('click', () => Push.test());
+$('#alarmOk').addEventListener('click', () => Alarm.dismiss(0));
+$('#alarmBox').addEventListener('click', e => { const b = e.target.closest('[data-snooze]'); if (b) Alarm.dismiss(Number(b.dataset.snooze)); });
+// 모바일은 사용자가 화면을 한 번 눌러야 소리를 낼 수 있으므로, 누를 때마다 소리 장치가 깨어 있는지 확인한다
+['touchend', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, () => { if (!actx || actx.state !== 'running') Tone.unlock(); }, true));
+// 앱이 켜져 있을 때 휴대폰 알림이 오면(서비스 워커가 전달) 화면에서도 바로 울린다
+if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => {
+  const d = e.data || {};
+  if (d.type === 'alarm' && d.alarm && document.visibilityState === 'visible') Alarm.ring(d.alarm);
+});
+Alarm.start();
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { if (Wake.rec) { try { Wake.rec.abort(); } catch {} } }
-  else if (Wake.on) { Wake.lock = null; Wake.keepAwake(); if (!Wake.busy) Wake.loop(); }
+  else {
+    if (Wake.on) { Wake.lock = null; Wake.keepAwake(); if (!Wake.busy) Wake.loop(); }
+    if (Date.now() - Alarm.lastLoad > 30000) Alarm.load(); else Alarm.check();   // 다시 화면으로 돌아오면 놓친 알림을 확인
+  }
 });
 if ('speechSynthesis' in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -1570,9 +1966,19 @@ const Demo = (() => {
   const now = () => t + ' ' + new Date().toTimeString().slice(0, 5);
   const cats = ['차량','생활','미용/자기관리','외식/모임','가족행사','여가/취미','여행','업무','재테크','앱개발','건강/진료'].map(n => ({ name: n, desc: '' }));
   let seq = 10, demoCost = 1240, demoCalls = 18;
+  // 데모용 알림 계산 (실제 앱에서는 서버가 계산)
+  const alarmAt = r => {
+    if (r.상태 !== '예정' || r.알림 === '' || r.알림 == null || !/^\d{4}-\d{2}-\d{2}$/.test(r.대상일 || '')) return '';
+    const ev = kstTime(r.대상일 + ' ' + (r.대상시각 || '09:00')), now = Date.now();
+    if (!(ev > now)) return '';
+    const at = ev - Number(r.알림) * 60000;
+    return kstStr(at > now ? at : ev);
+  };
+  const soon = kstStr(Math.ceil((Date.now() + 2 * 3600000) / 1800000) * 1800000);   // 2시간쯤 뒤 정각·30분
   let rows = [
     { ID: 'D-001', 입력일시: addDays(-1) + ' 08:12', 대상일: addDays(-1), 대상시각: '', 유형: '지출', 분류: '차량', 제목: '엔진오일 교체', 내용: '주행거리 62,000km 시점 교체', 금액: 85000, 인물: '', 장소: '', 태그: '엔진오일, 정비', 상태: '정상', 원문: '어제 엔진오일 갈았어 8만5천원 주행거리 6만2천', 수정일시: '', 삭제일시: '' },
-    { ID: 'D-002', 입력일시: addDays(-1) + ' 08:12', 대상일: addDays(7), 대상시각: '07:00', 유형: '일정', 분류: '여가/취미', 제목: '안성 골프 라운딩', 내용: '오전 7시 티업', 금액: null, 인물: '', 장소: '안성', 태그: '골프', 상태: '예정', 원문: '다음주 토요일 7시 안성 골프', 수정일시: '', 삭제일시: '' },
+    { ID: 'D-002', 입력일시: addDays(-1) + ' 08:12', 대상일: addDays(7), 대상시각: '07:00', 유형: '일정', 분류: '여가/취미', 제목: '안성 골프 라운딩', 내용: '오전 7시 티업', 금액: null, 인물: '', 장소: '안성', 태그: '골프', 상태: '예정', 원문: '다음주 토요일 7시 안성 골프', 수정일시: '', 삭제일시: '', 알림: '1440' },
+    { ID: 'D-009', 입력일시: now(), 대상일: soon.slice(0, 10), 대상시각: soon.slice(11), 유형: '업무일정', 분류: '업무', 제목: '미라셀 미팅', 내용: '신규 금형 일정 협의', 금액: null, 인물: '', 장소: '본사 3층 회의실', 태그: '미라셀, 미팅', 상태: '예정', 원문: '미라셀 미팅 30분 전에 알려 줘', 수정일시: '', 삭제일시: '', 알림: '30' },
     { ID: 'D-003', 입력일시: addDays(-2) + ' 21:40', 대상일: addDays(-2), 대상시각: '', 유형: '아이디어', 분류: '앱개발', 제목: '금형 이력 QR 조회 앱', 내용: '금형 교체 이력을 QR로 찍어서 보는 앱', 금액: null, 인물: '', 장소: '', 태그: '금형, QR', 상태: '정상', 원문: '금형 교체 이력을 QR로 찍어서 보는 앱 만들면 좋겠다', 수정일시: '', 삭제일시: '' },
     { ID: 'D-004', 입력일시: addDays(-3) + ' 19:05', 대상일: addDays(-3), 대상시각: '', 유형: '지출', 분류: '생활', 제목: '이마트 장보기', 내용: '주말 장보기', 금액: 123000, 인물: '지숙', 장소: '이마트', 태그: '장보기', 상태: '정상', 원문: '이마트 장보기 12만 3천 원', 수정일시: '', 삭제일시: '' },
     { ID: 'D-006', 입력일시: addDays(-1) + ' 20:10', 대상일: addDays(-1), 대상시각: '', 유형: '할일', 분류: '차량', 제목: '엔진오일 교체 예약', 내용: '', 금액: null, 인물: '', 장소: '', 태그: '', 상태: '예정', 원문: '', 수정일시: '', 삭제일시: '' },
@@ -1593,13 +1999,22 @@ const Demo = (() => {
     { ID: 'BRIEF', 이름: '아침 브리핑', 반복: '매일', 요일: '', 날짜: '', 시각: '07:30', 요청: '__BRIEF__', 활성: 'Y', 마지막실행: '', 다음실행: addDays(1) + ' 07:30' },
     { ID: 'DAILY', 이름: '오늘의 보고서', 반복: '매일', 요일: '', 날짜: '', 시각: '22:00', 요청: '__DAILY__', 활성: 'Y', 마지막실행: addDays(-1) + ' 22:00', 다음실행: t + ' 22:00' },
   ];
+  rows.forEach(r => { r.알림 = r.알림 || ''; r.알림시각 = alarmAt(r); });
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const alive = () => rows.filter(r => r.상태 !== '삭제');
   const parseDemo = text => {
     const money = (text.match(/(\d+)\s*만\s*(\d+)?\s*천?/) || []);
     const amt = money[1] ? Number(money[1]) * 10000 + (Number(money[2] || 0) * 1000) : null;
     const todo = /(해야|사야|갈아야|까먹지)/.test(text);
-    return { raw: text, items: [{ 유형: todo ? '할일' : amt ? '지출' : '일상', 분류: '생활', 새분류: false, 분류설명: '', 대상일: todo ? '' : t, 대상시각: '', 제목: text.slice(0, 20), 내용: text, 금액: amt, 인물: '', 장소: '', 태그: '', 상태: todo ? '예정' : '정상', 확인필요: '데모 모드입니다. 실제 정리는 Claude가 합니다.' }] };
+    const tm = text.match(/(오전|오후|저녁|밤)?\s*(\d{1,2})\s*시\s*(?:(\d{1,2})\s*분|(반))?/);
+    if (tm) {                                        // "내일 3시 미팅 30분 전에 알려 줘" → 일정 + 알림
+      let h = Number(tm[2]) % 24; if (/(오후|저녁|밤)/.test(tm[1] || '') && h < 12) h += 12;
+      const hm = String(h).padStart(2, '0') + ':' + (tm[4] ? '30' : String(Number(tm[3] || 0)).padStart(2, '0'));
+      const meet = /(미팅|회의|약속|만나)/.test(text), lead = text.match(/(\d+)\s*(분|시간)\s*전/);
+      const al = lead ? String(Number(lead[1]) * (lead[2] === '시간' ? 60 : 1)) : /(알려|알림|깨워)/.test(text) && !meet ? '0' : String(S.lead);
+      return { raw: text, items: [{ 유형: meet ? '일정' : '할일', 분류: meet ? '업무' : '생활', 새분류: false, 분류설명: '', 대상일: /내일/.test(text) ? addDays(1) : /모레/.test(text) ? addDays(2) : t, 대상시각: hm, 제목: text.replace(tm[0], '').replace(/(오늘|내일|모레)|\d+\s*(분|시간)\s*전에?|알려\s*줘|깨워\s*줘|알림.*$/g, '').replace(/\s+/g, ' ').trim().slice(0, 20) || text.slice(0, 20), 내용: text, 금액: null, 인물: '', 장소: '', 태그: '', 상태: '예정', 알림: al, 확인필요: '데모 모드입니다. 실제 정리는 Claude가 합니다.' }] };
+    }
+    return { raw: text, items: [{ 유형: todo ? '할일' : amt ? '지출' : '일상', 분류: '생활', 새분류: false, 분류설명: '', 대상일: todo ? '' : t, 대상시각: '', 제목: text.slice(0, 20), 내용: text, 금액: amt, 인물: '', 장소: '', 태그: '', 상태: todo ? '예정' : '정상', 알림: '', 확인필요: '데모 모드입니다. 실제 정리는 Claude가 합니다.' }] };
   };
   const nextOf = x => x.반복 === '한번' ? `${x.날짜} ${x.시각}` : `${addDays(1)} ${x.시각}`;
   return {
@@ -1629,7 +2044,7 @@ const Demo = (() => {
           const task = { ID: '', 이름: '예약 작업', 반복: w ? '매주' : '매일', 요일: w || '', 날짜: '', 시각: '08:00', 요청: q.replace(/^.*?시에?\s*/, ''), 활성: 'Y', 다음실행: '' };
           return { intent: '예약', task, speech: `${taskWhen(task)}에 “${task.요청}”을 수행합니다. 이렇게 예약할까요?` };
         }
-        if (/(했어|샀어|갔어|먹었|만원|만 원|천원|천 원|해야|사야|갈아야)/.test(q) && action === 'talk') return { intent: '기록', ...parseDemo(q) };
+        if (/(했어|샀어|갔어|먹었|만원|만 원|천원|천 원|해야|사야|갈아야|알려|깨워|미팅|회의|약속)/.test(q) && action === 'talk') return { intent: '기록', ...parseDemo(q) };
         if (/(승인원|표준서|검사|규격|공차|CR-?747|FPR)/i.test(q)) {
           return { intent: '질문', speech: 'CR-747 승인원 기준으로 외관, 치수, 기능 세 가지를 검사합니다. 치수 공차는 ±0.05mm입니다. (데모 답변)',
             detail: '• 외관: 흑점·흐름자국·웰드라인 없음 (CR-747 승인원 · p.4)\n• 치수: 전장 142.0±0.05mm (CR-747 승인원 · p.6)\n• 기능: 버튼 작동력 250±50gf (CR-747 승인원 · p.7)',
@@ -1643,8 +2058,19 @@ const Demo = (() => {
           evidence: spend, docEvidence: [], stats: { 건수: spend.length, 금액건수: spend.length, 합계: sum, 평균: Math.round(sum / (spend.length || 1)), 기간: { 시작: '', 끝: '' } } };
       }
       if (action === 'save') {
-        const ids = d.items.map(it => { const id = 'D-' + String(++seq).padStart(3, '0'); rows.unshift({ ...it, ID: id, 입력일시: now(), 원문: d.raw, 수정일시: '', 삭제일시: '', 인물: it.인물 || '', 장소: it.장소 || '', 태그: it.태그 || '' }); return id; });
-        return { ids, recent: alive().slice(0, 5) };
+        const ids = d.items.map(it => { const id = 'D-' + String(++seq).padStart(3, '0'); rows.unshift({ ...it, ID: id, 입력일시: now(), 원문: d.raw, 수정일시: '', 삭제일시: '', 인물: it.인물 || '', 장소: it.장소 || '', 태그: it.태그 || '', 알림: it.알림 || '', 알림시각: alarmAt(it) }); return id; });
+        const pick = r => ({ ID: r.ID, 제목: r.제목, 유형: r.유형, 대상일: r.대상일, 대상시각: r.대상시각, 장소: r.장소, 알림: r.알림, 알림시각: r.알림시각 });
+        return { ids, recent: alive().slice(0, 5), alarms: rows.filter(r => ids.includes(r.ID) && r.알림시각).map(pick) };
+      }
+      if (action === 'alarms') {
+        const from = kstStr(Date.now() - 3600000), to = kstStr(Date.now() + 36 * 3600000);
+        return { alarms: alive().filter(r => r.상태 === '예정' && r.알림시각 && r.알림시각 >= from && r.알림시각 <= to).sort((a, b) => a.알림시각.localeCompare(b.알림시각))
+          .map(r => ({ ID: r.ID, 제목: r.제목, 유형: r.유형, 대상일: r.대상일, 대상시각: r.대상시각, 장소: r.장소, 알림: r.알림, 알림시각: r.알림시각 })) };
+      }
+      if (action === 'alarmAck') {
+        const r = rows.find(x => x.ID === d.id); const n = Number(d.snooze) || 0;
+        if (r) r.알림시각 = n ? kstStr(Date.now() + n * 60000) : '';
+        return { alarm_at: r ? r.알림시각 : '' };
       }
       if (action === 'docs') return { docs, maxMb: 50 };
       if (action === 'reindex') { await wait(900); return { done: 0, pending: 0, errors: 0, docs }; }
@@ -1683,11 +2109,11 @@ const Demo = (() => {
       if (action === 'update') {
         let n = 0;
         Object.entries(d.fields).forEach(([k, v]) => { if (k === '금액') v = v === '' ? null : Number(v); if (String(row[k] ?? '') !== String(v ?? '')) { row[k] = v; n++; } });
-        if (n) row.수정일시 = now();
+        if (n) { row.수정일시 = now(); row.알림시각 = alarmAt(row); }
         return { changed: n, row };
       }
-      if (action === 'delete') { row._prev = row.상태; row.상태 = '삭제'; row.삭제일시 = t; return { deleted: d.id }; }
-      if (action === 'restore') { row.상태 = row._prev || '정상'; row.삭제일시 = ''; return { restored: d.id, 상태: row.상태 }; }
+      if (action === 'delete') { row._prev = row.상태; row.상태 = '삭제'; row.삭제일시 = t; row.알림시각 = ''; return { deleted: d.id }; }
+      if (action === 'restore') { row.상태 = row._prev || '정상'; row.삭제일시 = ''; row.알림시각 = alarmAt(row); return { restored: d.id, 상태: row.상태 }; }
       throw new Error('데모에서 지원하지 않는 요청');
     },
   };
