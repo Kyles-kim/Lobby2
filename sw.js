@@ -1,5 +1,6 @@
 // Lobby service worker — 화면 파일만 캐시하고, 서버(Supabase) 요청은 항상 네트워크로 보냅니다.
-const CACHE = 'lobby2-v12';
+// 서버가 보내는 휴대폰 알림(일정 알림)도 여기서 받아 알림 센터에 띄웁니다.
+const CACHE = 'lobby2-v13';
 const ASSETS = ['./', './index.html', './manifest.json', './icons/icon-192.png', './icons/icon-512.png', './icons/face.webp', './icons/face-closed.webp'];
 
 self.addEventListener('install', e => {
@@ -18,4 +19,26 @@ self.addEventListener('fetch', e => {
     caches.open(CACHE).then(c => c.put(e.request, copy));
     return res;
   }).catch(() => caches.match(e.request).then(r => r || caches.match('./index.html'))));
+});
+
+// 휴대폰 알림: 앱이 꺼져 있어도 알림 센터에 띄우고, 앱이 열려 있으면 화면에서도 울리도록 전달한다
+self.addEventListener('push', e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data ? e.data.text() : '' }; }
+  e.waitUntil((async () => {
+    await self.registration.showNotification(d.title || 'Lobby2 알림', {
+      body: d.body || '', tag: d.tag || 'lobby2', renotify: true, requireInteraction: true, lang: 'ko',
+      icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', vibrate: [400, 200, 400, 200, 800], data: d,
+    });
+    if (d.alarm) (await self.clients.matchAll({ type: 'window', includeUncontrolled: true })).forEach(c => c.postMessage({ type: 'alarm', alarm: d.alarm }));
+  })());
+});
+// 알림을 누르면 열려 있는 Lobby2 화면으로 가고, 없으면 새로 연다
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil((async () => {
+    const cs = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of cs) if ('focus' in c) return c.focus();
+    return self.clients.openWindow('./#talk');
+  })());
 });
