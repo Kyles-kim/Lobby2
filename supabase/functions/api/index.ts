@@ -42,7 +42,7 @@ const CONFIG = {
   ALARM_GRACE_MIN: 60,          // 이 시간(분) 넘게 지난 알림은 늦게라도 울리지 않고 버린다
   PUSH_CONTACT: "https://github.com/kyles-kim/Lobby2",   // 휴대폰 알림 서버(애플·구글)에 알려 주는 연락처
 };
-const BUILD = "2026-10-07 Lobby2 · Supabase · 일정 알림";
+const BUILD = "2026-10-08 Lobby2 · Supabase · 일정 알림 · 도면·사진";
 
 const TYPES = ["일상", "지출", "일정", "업무일정", "정보", "특이점", "아이디어", "할일"];
 const STATES = ["정상", "예정", "완료", "취소", "삭제"];
@@ -112,7 +112,7 @@ const handlers: Record<string, (req: any) => Promise<any> | any> = {
   init: actInit, parse: actParse, save: actSave,
   ask: (r) => actTalk({ ...r, mode: "question" }), talk: actTalk,
   list: actList, update: actUpdate, delete: actDelete, restore: actRestore,
-  docs: actDocs, uploadUrl: actUploadUrl, indexDoc: actIndexDoc, reindex: actReindex, deleteDoc: actDeleteDoc, readDoc: actReadDoc,
+  docs: actDocs, uploadUrl: actUploadUrl, docMemo: actDocMemo, indexDoc: actIndexDoc, reindex: actReindex, deleteDoc: actDeleteDoc, readDoc: actReadDoc,
   reports: actReports, readReport: actReadReport, deleteReport: actDeleteReport, runDaily: actRunDaily,
   saveTask: actSaveTask, deleteTask: actDeleteTask,
   todos: actTodos, brief: actBrief, usage: () => ({}),
@@ -398,7 +398,8 @@ async function makePlan(text: string, history: any[]) {
     '- 최근대화를 보고 "그거", "아까 그 문서" 같은 말을 해석한다.',
     '- 기간은 대상일 기준. "이번 주"=이번 주 월~일, "이번 달"=1일~말일, "올해"=1/1~12/31, "최근"=지난 30일. 기간 언급이 없고 최근·정보 질문이면 기간 null(전체).',
     "- 검색어는 기록의 제목·내용·태그·인물·장소에서 찾을 핵심 단어(동의어 포함).",
-    '- 문서검색어는 문서 본문에서 찾을 핵심어 최대 8개: 모델명·부품명·검사항목·규격값 단어, 한글/영문 표기와 동의어 포함(예: ["CR-747","CR747","외관","치수","공차"]).',
+    '- 문서검색어는 문서 본문에서 찾을 핵심어 최대 8개: 모델명·부품명·검사항목·규격값 단어, 한글/영문 표기와 동의어 포함(예: ["CR-747","CR747","외관","치수","공차"]). 도면·사진을 찾는 말이면 "도면"·"사진"도 넣는다. 재질을 물으면 "재질","원료","수지","그레이드"를 함께 넣는다.',
+    '- 도면·제품사진·치수·적용 원료를 묻는 말은 출처를 문서(기록도 관련 있으면 둘다)로 한다.',
     "- 문서파일은 카일님이 특정 문서를 지목하면(보여 줘·열어 줘·읽어 줘 포함) 목록에서 그 파일명을 그대로 넣고 출처는 문서로 한다. 아니면 [].",
     "- 분류·유형은 확실할 때만 넣는다. 계산: 합계|횟수|평균|없음. 그룹: 월|분류|유형|없음.",
     '- 의도가 예약이면 예약을 채운다: 이름(10자 안팎), 반복(매일|매주|매월|한번), 요일("월,수" 형식, 매주일 때), 날짜(매월이면 일자 숫자, 한번이면 yyyy-MM-dd), 시각(HH:mm 24시간), 요청(그 시각에 Lobby가 스스로 답할 질문 문장). 아니면 예약은 null.',
@@ -431,6 +432,8 @@ async function answer(q: string, plan: any, history: any[]) {
     '- 기록·문서에 없는 내용은 지어내지 않는다. 일치기록있음이 false일 때만 기록이 없다고 하고, 그때도 전체기록수와 함께 "기록 N건 중 관련 기록을 찾지 못했다"고 말하며 "해당 기록이 없습니다"라고 말하고 지금 기록할지 묻는다.',
     '- 문서발췌에 답이 없으면 "등록된 문서에서 찾지 못했습니다"라고 말하고, 어떤 문서를 문서 탭에서 올리면 되는지 한 줄로 제안한다.',
     "- 카일님이 문서를 보여 달라·열어 달라고 하면 그 문서가 무엇에 관한 것인지 한두 문장으로 말하고 \"화면에서 바로 열 수 있습니다\"라고 덧붙인다(근거문서에 그 문서의 번호를 넣으면 화면에 열기 버튼이 나온다). 읽어 달라고 하면 음성에 핵심 내용을 3~5문장으로 읽기 좋게 옮긴다.",
+    "- 도면·제품사진(형식이 이미지이거나 내용이 [도면]·[사진]으로 시작)을 보여 달라거나 치수·형상을 물으면 근거문서에 그 번호를 꼭 넣는다(화면에 도면·사진 미리보기가 나온다). 같은 제품의 승인원·도면·사진이 함께 있으면 함께 넣는다.",
+    "- 치수는 [도면] 판독의 \"뷰·부분 - 치수 이름: 값 공차\"를 근거로, 어느 부분의 치수인지 함께 말한다. 적용 원료·재질은 표제란이나 승인원의 값을 그대로 쓴다.",
     "- 출처가 없음(인사·잡담·일반 상식)이면 알고 있는 지식으로 짧고 따뜻하게 답한다.",
     '- 숫자(합계·건수·평균)는 [조회결과].통계 값을 그대로 쓴다. 직접 다시 계산하지 않는다(단, 조회방식에 "풀어서"가 있으면 기록을 직접 읽고 관련 건만 세어 건수를 말한다).',
     "- 규격·치수·공차·검사기준·수량 같은 문서 수치는 단위까지 원문 그대로 옮긴다. 추정·반올림 금지.",
@@ -443,7 +446,7 @@ async function answer(q: string, plan: any, history: any[]) {
   const payload = {
     질문: q, 최근대화: history || [], 조회계획: plan,
     조회결과: useRec ? { 통계: result.stats, 기록: result.aiRows, 참고기록_검색어불일치: result.extra } : "(기록은 조회하지 않음)",
-    문서발췌: useDoc ? (docs.length ? docs.map((d) => ({ 번호: d.key, 문서: d.파일명, 위치: d.위치, 내용: d.본문 })) : "(관련 문서 조각을 찾지 못함)") : "(문서는 조회하지 않음)",
+    문서발췌: useDoc ? (docs.length ? docs.map((d) => ({ 번호: d.key, 문서: d.파일명, 형식: d.형식, ...(d.품번 ? { 품번: d.품번 } : {}), ...(d.품명 ? { 품명: d.품명 } : {}), ...(d.메모 ? { 메모: d.메모 } : {}), 위치: d.위치, 내용: d.본문 })) : "(관련 문서 조각을 찾지 못함)") : "(문서는 조회하지 않음)",
     프로필: await getProfile(),
   };
   const ans = extractJson(await callClaude(sys, JSON.stringify(payload), 1800));
@@ -453,7 +456,8 @@ async function answer(q: string, plan: any, history: any[]) {
   const dkeys = (ans.근거문서 || []).map(String);
   const used = docs.filter((d) => dkeys.indexOf(d.key) >= 0);
   const links = await docLinks(used.map((d) => d.파일ID));
-  const docEvidence = used.map((d) => ({ 파일ID: d.파일ID, 파일명: d.파일명, 위치: d.위치, 링크: links[d.파일ID] || "", 발췌: d.본문.replace(/\s+/g, " ").slice(0, 180) }));
+  const docEvidence = used.map((d) => ({ 파일ID: d.파일ID, 파일명: d.파일명, 형식: d.형식, 품번: d.품번, 품명: d.품명, 메모: d.메모, 위치: d.위치, 쪽: Number((/p\.(\d+)/.exec(d.위치) || [])[1]) || 1,
+    링크: links[d.파일ID] || "", 발췌: d.본문.replace(/^\[(도면|사진)\]\s*/, "").replace(/\s+/g, " ").slice(0, 180) }));
 
   await run(db.from("chat_log").insert({ at: nowStr(), question: q, plan, speech: ans.음성 || "",
     note: "기록 " + (result.stats ? result.stats.건수 : 0) + " / 문서 " + docs.length + " / " + Math.round((Date.now() - t0) / 100) / 10 + "초" }));
@@ -556,9 +560,30 @@ async function actUploadUrl(req: any) {
   const path = id + "." + ext;                         // 저장소 경로에는 한글을 쓸 수 없어 ID로 저장하고, 이름은 표에 남긴다
   const { data, error } = await db.storage.from(CONFIG.BUCKET).createSignedUploadUrl(path);
   if (error) throw new Error("올리기 준비 실패: " + error.message);
-  await run(db.from("docs").insert({ id, name, kind: usableKind(kind) ? kind : "미지원", path, size, uploaded_at: nowStr(),
-    status: usableKind(kind) ? "올리는 중" : kind }));
+  const row: any = { id, name, kind: usableKind(kind) ? kind : "미지원", path, size, uploaded_at: nowStr(), status: usableKind(kind) ? "올리는 중" : kind };
+  const part = cleanPart(req.part), product = cleanText(req.product, 60), memo = cleanText(req.memo, 100);
+  if (part) row.part_no = part;
+  if (product) row.product = product;
+  if (memo) row.memo = memo;
+  await memoSafe(run(db.from("docs").insert(row)));
   return { id, uploadUrl: data.signedUrl, kind };
+}
+
+/** 문서의 품번·제품명(품명)·메모 바꾸기 (다시 읽지 않아도 바로 검색에 쓰인다) */
+async function actDocMemo(req: any) {
+  await memoSafe(run(db.from("docs").update({ part_no: cleanPart(req.part), product: cleanText(req.product, 60), memo: cleanText(req.memo, 100) }).eq("id", String(req.id))));
+  return await actDocs();
+}
+const cleanText = (v: any, n: number) => String(v || "").trim().replace(/\s+/g, " ").slice(0, n);
+/** 품번 정리: 앞뒤 공백 제거, 영문은 대문자 (예: " cr-747 " → "CR-747") */
+const cleanPart = (v: any) => String(v || "").trim().replace(/\s+/g, " ").toUpperCase().slice(0, 40);
+
+/** 메모 칸이 없는 DB(아직 docs_media.sql을 실행하지 않음)에서 나는 오류를 알아듣기 쉽게 바꾼다 */
+async function memoSafe<T>(p: Promise<T>) {
+  try { return await p; } catch (e: any) {
+    if (/memo|part_no|product/.test(String(e && e.message))) throw new Error("품번·제품명·메모 기능용 표 업데이트가 필요합니다. Supabase SQL Editor에서 supabase/migrations/20261008000000_docs_media.sql을 한 번 실행해 주세요.");
+    throw e;
+  }
 }
 
 async function actIndexDoc(req: any) {
@@ -576,7 +601,7 @@ async function indexDoc(doc: any) {
     const { data: blob, error } = await db.storage.from(CONFIG.BUCKET).download(doc.path);
     if (error || !blob) throw new Error("파일을 아직 받지 못했습니다. 다시 올려 주세요");
     const bytes = new Uint8Array(await blob.arrayBuffer());
-    const r = await extractSegments(bytes, doc.kind, doc.name);
+    const r = await extractSegments(bytes, doc.kind, doc.name, [doc.part_no, doc.product, doc.memo].filter(Boolean).join(" "));
     segs = r.segs;
     if (!segs.some((s) => s.text.trim())) status = "글자 없음";
     else if (r.partial) status = "일부만 읽음(문서가 길어 앞부분만 읽었습니다. 나눠서 올려 주세요)";
@@ -588,13 +613,30 @@ async function indexDoc(doc: any) {
     await run(db.from("doc_chunks").insert(chunks.slice(i, i + 200).map((c, k) => ({ doc_id: doc.id, name: doc.name, seq: i + k + 1, loc: c.loc, body: c.text }))));
   }
   await run(db.from("docs").update({ chunks: chunks.length, read_at: nowStr(), status }).eq("id", doc.id));
+  // 비워 둔 품번·품명은 도면 표제란이나 승인원에 적힌 값으로 채운다 (표 업데이트 전이면 건너뜀)
+  if (segs.length && (!doc.part_no || !doc.product)) {
+    const m = metaFromText(segs), patch: any = {};
+    if (!doc.part_no && m.part) patch.part_no = m.part;
+    if (!doc.product && m.product) patch.product = m.product;
+    if (Object.keys(patch).length) await run(db.from("docs").update(patch).eq("id", doc.id)).catch(() => {});
+  }
   return status;
+}
+
+/** 문서 앞부분에서 "품번: …", "품명: …" 찾기 (도면 판독 결과의 표제란, 승인원 표 등) */
+function metaFromText(segs: Seg[]) {
+  const t = segs.slice(0, 6).map((x) => x.text).join("\n").slice(0, 8000);
+  const pick = (re: RegExp) => { const m = re.exec(t); const v = m ? m[1].trim() : ""; return /판독|불가|없음/.test(v) ? "" : v; };
+  return {
+    part: cleanPart(pick(/품\s*번\s*[:：]\s*([A-Za-z0-9][A-Za-z0-9\-_./ ]{1,30}?)\s*(?:[,|\n(]|$)/m)),
+    product: cleanText(pick(/(?:품\s*명|제\s*품\s*명)\s*[:：]\s*([^\n|,]{2,40}?)\s*(?:[,|\n]|$)/m), 60),
+  };
 }
 
 type Seg = { loc: string; text: string };
 
 /** 파일 → [{loc, text}] 조각 전 단계 */
-async function extractSegments(bytes: Uint8Array, kind: string, name: string): Promise<{ segs: Seg[]; partial?: boolean }> {
+async function extractSegments(bytes: Uint8Array, kind: string, name: string, memo = ""): Promise<{ segs: Seg[]; partial?: boolean }> {
   switch (kind) {
     case "텍스트": return { segs: [{ loc: "", text: new TextDecoder("utf-8").decode(bytes) }] };
     case "워드": return { segs: docxSegments(bytes) };
@@ -605,8 +647,12 @@ async function extractSegments(bytes: Uint8Array, kind: string, name: string): P
       let segs: Seg[] = [];
       try { segs = await pdfSegments(bytes); } catch (_e) { segs = []; }
       const len = segs.reduce((s, x) => s + x.text.replace(/\s/g, "").length, 0);
+      // 도면은 글자가 들어 있어도 숫자만 흩어져 나와 어느 부분 치수인지 알 수 없으므로, Claude가 그림으로 보고 읽는다
+      if (isDrawing(name + " " + memo, segs) && bytes.length <= CONFIG.PDF_AI_MAX_MB * 1024 * 1024) {
+        try { const d = await pdfSegmentsByClaude(bytes, true); if (d.segs.some((x) => x.text.trim())) return d; } catch (_e) { /* 실패하면 뽑은 글자로 */ }
+      }
       if (len >= 200) return { segs };
-      return await pdfSegmentsByClaude(bytes);   // 스캔 PDF·도면 등 글자를 못 뽑은 경우
+      return await pdfSegmentsByClaude(bytes);   // 스캔 PDF 등 글자를 못 뽑은 경우
     }
   }
   return { segs: [] };
@@ -659,17 +705,38 @@ async function pdfSegments(bytes: Uint8Array): Promise<Seg[]> {
 
 const TRANSCRIBE = '글자를 빠짐없이 옮겨 적어라. 표는 한 행을 "칸 | 칸 | 칸" 한 줄로 적는다. 도면의 치수·공차·주석·표제란도 적는다. 요약·설명 없이 원문만 출력.';
 
-async function pdfSegmentsByClaude(bytes: Uint8Array) {
+// 도면 판독: 숫자만 옮기면 어느 부분 치수인지 알 수 없으므로 "부분 - 치수: 값 공차" 형태로 정리하게 한다
+const DRAWING = [
+  "이 도면을 보고 아래 순서로 빠짐없이 적어라. 보이는 값만 적고 추정하지 않는다. 읽기 어려운 값은 (판독 불가)로 적는다.",
+  "■ 표제란: 도번, 품번, 품명, 재질·적용 원료(그레이드 포함), 색상, 척도, 단위, 리비전, 작성·승인일 등 보이는 항목을 \"항목: 값\"으로 한 줄씩",
+  "■ 치수: 한 줄에 하나씩 \"뷰·부분 - 치수 이름: 값 공차\" (예: \"정면도 - 전장: 142.0 ±0.05 mm\", \"측면도 - 체결 구멍 지름: Ø3.2 +0.1/0\"). Ø·R·C·±·기하공차 기호와 단위는 그대로",
+  "■ 일반공차·주석·표면처리·검사 기준: 원문 그대로",
+  "■ 형상: 어떤 부품인지, 형태와 주요 특징을 두세 문장으로",
+  "■ 그 밖의 글자: 위에 들어가지 않은 표·글자를 원문 그대로",
+].join("\n");
+const DRAWING_NAME = /(도면|drawing|dwg|dxf|assy|조립도|부품도|외형도|제작도|금형도)/i;
+/** 도면인지: 파일 이름·메모에 도면이라는 말이 있거나, 뽑은 글자 대부분이 치수처럼 생긴 숫자인 짧은 PDF */
+function isDrawing(label: string, segs: Seg[]) {
+  if (DRAWING_NAME.test(label)) return true;
+  if (!segs.length || segs.length > 30) return false;
+  const words = segs.map((x) => x.text).join(" ").split(/\s+/).filter(Boolean);
+  if (words.length < 15 || words.length / segs.length > 400) return false;     // 한 쪽에 글이 빽빽하면 일반 문서
+  const dims = words.filter((w) => /^[Ø⌀φRCM±+\-]?\d+([.,]\d+)?(°|mm)?$/i.test(w) || /^[±+\-]\d/.test(w)).length;
+  return dims / words.length >= 0.35;
+}
+
+async function pdfSegmentsByClaude(bytes: Uint8Array, drawing = false) {
   if (bytes.length > CONFIG.PDF_AI_MAX_MB * 1024 * 1024) throw new Error("글자를 뽑을 수 없는 PDF(스캔본)인데 " + CONFIG.PDF_AI_MAX_MB + "MB를 넘어 읽지 못했습니다");
   const content = [
     { type: "document", source: { type: "base64", media_type: "application/pdf", data: encodeBase64(bytes) } },
-    { type: "text", text: "이 PDF의 " + TRANSCRIBE + " 각 페이지 시작에 [p.번호]를 붙인다." },
+    { type: "text", text: drawing ? DRAWING + "\n각 페이지 시작에 [p.번호]를 붙인다." : "이 PDF의 " + TRANSCRIBE + " 각 페이지 시작에 [p.번호]를 붙인다." },
   ];
   const r = await callClaudeFull("너는 문서 전사 도구다. 원문을 정확히 옮겨 적는다.", content, 16000);
   const parts = r.text.split(/\[p\.(\d+)\]/);
   const segs: Seg[] = [];
-  if (parts[0].trim()) segs.push({ loc: "", text: parts[0] });
-  for (let i = 1; i < parts.length; i += 2) segs.push({ loc: "p." + parts[i], text: parts[i + 1] || "" });
+  const tag = drawing ? "[도면] " : "";             // "도면"으로 물어도 찾을 수 있게 앞에 붙인다
+  if (parts[0].trim()) segs.push({ loc: "", text: tag + parts[0] });
+  for (let i = 1; i < parts.length; i += 2) segs.push({ loc: "p." + parts[i], text: tag + (parts[i + 1] || "") });
   return { segs, partial: r.cut };
 }
 
@@ -679,10 +746,15 @@ async function imageSegmentsByClaude(bytes: Uint8Array, name: string) {
   const media = /\.png$/.test(n) ? "image/png" : /\.gif$/.test(n) ? "image/gif" : /\.webp$/.test(n) ? "image/webp" : "image/jpeg";
   const content = [
     { type: "image", source: { type: "base64", media_type: media, data: encodeBase64(bytes) } },
-    { type: "text", text: "이 사진의 " + TRANSCRIBE + " 글자가 전혀 없으면 사진에 무엇이 있는지 두세 문장으로 설명한다." },
+    { type: "text", text: [
+      "이 사진이 무엇인지 첫 줄에 \"종류: 제품사진\", \"종류: 도면\", \"종류: 문서\", \"종류: 기타\" 중 하나로 적어라.",
+      "도면이면 이어서 다음을 따른다.\n" + DRAWING,
+      "문서면 이어서 " + TRANSCRIBE,
+      "제품사진·기타면 이어서 \"설명:\" 줄에 무엇인지, 형태·색상·재질감·크기감·특징을 3~5문장으로 적고, 보이는 품번·각인·라벨 글자가 있으면 \"글자:\" 줄에 그대로 적는다.",
+    ].join("\n") },
   ];
-  const r = await callClaudeFull("너는 문서 전사 도구다. 원문을 정확히 옮겨 적는다.", content, 8000);
-  return { segs: [{ loc: "이미지 글자", text: r.text }], partial: r.cut };
+  const r = await callClaudeFull("너는 문서·도면·제품사진 판독 도구다. 보이는 것만 정확히 적는다.", content, 8000);
+  return { segs: [{ loc: "사진", text: "[사진] " + r.text }], partial: r.cut };
 }
 
 function chunkSegments(segs: Seg[]) {
@@ -707,11 +779,21 @@ function chunkSegments(segs: Seg[]) {
 }
 
 async function getDocNames() {
-  const rows = await run<any[]>(db.from("docs").select("name").order("name").limit(120));
-  return rows.map((r) => String(r.name)).filter(Boolean);
+  const rows = await docRows("name,part_no,product,memo", (q) => q.order("name").limit(120));
+  return rows.map((r) => { const tag = [r.part_no, r.product, r.memo].filter(Boolean).join(" · "); return String(r.name) + (tag ? " (" + tag + ")" : ""); }).filter(Boolean);
+}
+/** docs 표 읽기. 메모 칸이 아직 없으면(표 업데이트 전) 메모 없이 읽는다 */
+async function docRows(cols: string, more: (q: any) => any = (q) => q): Promise<any[]> {
+  try { return await run<any[]>(more(db.from("docs").select(cols))); }
+  catch (e: any) {
+    if (!/memo|part_no|product/.test(String(e && e.message))) throw e;
+    return await run<any[]>(more(db.from("docs").select(cols.split(",").filter((c) => ["memo", "part_no", "product"].indexOf(c.trim()) < 0).join(","))));
+  }
 }
 
 const likeEsc = (s: string) => s.replace(/[\\%_]/g, (c) => "\\" + c);
+/** 품번 검색 패턴: 하이픈·띄어쓰기 유무가 달라도 찾는다 ("CR747"·"cr 747" → CR-747) */
+const partPat = (k: string) => "%" + k.split(/[-\s_]+/).filter(Boolean).map(likeEsc).join("%").replace(/([A-Za-z])(\d)/g, "$1%$2") + "%";
 
 /** 문서 조각 검색: 키워드가 많이 맞는 조각을 골라 Claude에게 넘긴다 */
 async function searchDocs(keywords: string[], files: string[], q: string) {
@@ -724,12 +806,22 @@ async function searchDocs(keywords: string[], files: string[], q: string) {
 
   const score: Record<string, number> = {};
   for (const k of kws) {
-    const hits = await run<any[]>(db.from("doc_chunks").select("id,name").ilike("body", "%" + likeEsc(k) + "%").limit(500));
-    if (!hits.length) continue;
+    const pat = "%" + likeEsc(k) + "%";
+    const hits = await run<any[]>(db.from("doc_chunks").select("id,name").ilike("body", pat).limit(500));
     const w = 1 / Math.log(2 + hits.length / 5);      // 흔한 단어는 가중치를 낮춤
     hits.filter((h) => fileOk(h.name)).forEach((h) => {
       score[h.id] = (score[h.id] || 0) + w + (String(h.name).toLowerCase().indexOf(k.toLowerCase()) >= 0 ? 0.5 : 0);
     });
+    // 파일 이름·품번·제품명(품명)·메모가 맞는 문서는 본문에 그 말이 없어도 찾는다 (예: "하부 케이스 사진" → IMG_2481.jpg, 품명 리모컨 하부 케이스, 메모 제품사진)
+    const byName = await docRows("id,name", (q) => q.ilike("name", pat).limit(50));
+    const byPart = await docRows("id,name,part_no", (q) => q.ilike("part_no", partPat(k)).limit(50)).catch(() => []);
+    const byProduct = await docRows("id,name,product", (q) => q.ilike("product", pat).limit(50)).catch(() => []);
+    const byMemo = await docRows("id,name,memo", (q) => q.ilike("memo", pat).limit(50)).catch(() => []);
+    const docIds = [...byName, ...byPart, ...byProduct, ...byMemo].filter((d) => fileOk(d.name)).map((d) => String(d.id)).filter((id, i, a) => a.indexOf(id) === i);
+    if (docIds.length) {
+      const heads = await run<any[]>(db.from("doc_chunks").select("id").in("doc_id", docIds).lte("seq", 2).limit(100));
+      heads.forEach((h) => { score[h.id] = (score[h.id] || 0) + 1; });
+    }
   }
   let ids = Object.keys(score).sort((a, b) => score[b] - score[a]).slice(0, CONFIG.MAX_DOC_CHUNKS_TO_AI).map(Number);
   if (!ids.length && want.length) {                   // 지목한 문서가 있으면 앞부분이라도
@@ -738,8 +830,11 @@ async function searchDocs(keywords: string[], files: string[], q: string) {
   }
   if (!ids.length) return [];
   const rows = await run<any[]>(db.from("doc_chunks").select("*").in("id", ids));
+  const info: Record<string, any> = {};
+  (await docRows("id,kind,part_no,product,memo", (q) => q.in("id", rows.map((r) => r.doc_id)))).forEach((d) => { info[d.id] = d; });
   return ids.map((id) => rows.find((r) => r.id === id)).filter(Boolean).map((v: any, i) => ({
-    key: "D" + (i + 1), 파일ID: String(v.doc_id), 파일명: String(v.name), 조각: v.seq, 위치: String(v.loc || ""), 본문: String(v.body).slice(0, 2400),
+    key: "D" + (i + 1), 파일ID: String(v.doc_id), 파일명: String(v.name), 형식: String(info[v.doc_id]?.kind || ""), 품번: String(info[v.doc_id]?.part_no || ""), 품명: String(info[v.doc_id]?.product || ""), 메모: String(info[v.doc_id]?.memo || ""),
+    조각: v.seq, 위치: String(v.loc || ""), 본문: String(v.body).slice(0, 2400),
   }));
 }
 
@@ -763,7 +858,7 @@ async function actDocs() {
   const links = await docLinks(rows.filter((r) => r.status !== "올리는 중").map((r) => r.id));
   return {
     docs: rows.map((r) => ({ 파일ID: r.id, 파일명: r.name, 형식: r.kind, 크기: r.size, 수정일시: r.uploaded_at, 조각수: r.chunks || 0,
-      읽은일시: r.read_at, 상태: r.status, 링크: links[r.id] || "" })),
+      읽은일시: r.read_at, 상태: r.status, 링크: links[r.id] || "", 품번: r.part_no || "", 품명: r.product || "", 메모: r.memo || "" })),
     maxMb: CONFIG.UPLOAD_MAX_MB,
   };
 }

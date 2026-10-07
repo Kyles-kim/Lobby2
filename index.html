@@ -244,6 +244,31 @@ body.speaking .sound i{animation-name:sound;animation-duration:1.15s;animation-t
 .doc-ev:last-child{border-bottom:0}
 .doc-ev a{color:var(--cyan);text-decoration:none;font-weight:500}
 .doc-ev small{color:var(--muted)}
+/* 답변 속 도면·사진 미리보기 (누르면 원본이 크게 열린다) */
+.shot{position:relative;display:grid;place-items:center;min-height:120px;margin:4px 0 2px;border-radius:10px;overflow:hidden;
+  background:#F5F2EA;border:1px solid rgba(241,211,168,.45);box-shadow:inset 0 0 0 1px rgba(0,0,0,.05),0 4px 12px rgba(0,0,0,.25);text-decoration:none}
+.shot img,.shot canvas{display:block;width:100%;height:auto;max-height:420px;object-fit:contain}
+.shot .zoom{position:absolute;right:8px;bottom:8px;font-size:11.5px;padding:3px 9px;border-radius:10px;background:rgba(20,28,27,.78);color:#F6E3C8;border:1px solid rgba(241,211,168,.45)}
+.shot.pdf:not(.ok):not(.fail)::before{content:"도면을 불러오는 중…";color:#7A6A55;font-size:13px}
+.shot.pdf:not(.ok) canvas{display:none}
+.shot.fail::before{content:"미리보기를 불러오지 못했습니다 · 눌러서 열기"!important;color:#7A6A55;font-size:13px}
+.chip.m{color:#FFE2B8;border-color:rgba(241,211,168,.5);background:var(--brass-soft);white-space:normal;height:auto;min-height:22px}
+.chip.p{color:#2A1809;background:var(--bronze-btn);border-color:rgba(255,235,205,.55);font-weight:700;font-family:var(--mono);letter-spacing:.02em}
+.up-plan{gap:12px}
+.up-all{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end;padding:10px;border-radius:10px;background:rgba(18,26,25,.35);border:1px dashed var(--line)}
+.up-all .wide{grid-column:1/-1}
+.up-all .btn{height:36px;grid-column:1/-1;justify-self:end}
+.up-note{font-size:12px;color:var(--brass-lite)}
+.up-item{display:grid;gap:8px;padding:10px 0;border-top:1px solid var(--line)}
+.up-item .up-name{display:flex;align-items:center;gap:8px;min-width:0}
+.up-item .up-name b{font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.up-item .up-name small{color:var(--muted);font-family:var(--mono);font-size:11.5px}
+.up-item .form{grid-template-columns:1fr 1.4fr}
+.up-item .fld input.guess{border-color:rgba(221,169,110,.55);background:rgba(221,169,110,.08)}
+.memo-edit{display:grid;gap:8px;padding:10px;border-radius:10px;background:rgba(18,26,25,.35);border:1px solid rgba(221,169,110,.5)}
+.memo-edit .form{grid-template-columns:1fr 1.4fr}
+.doc-thumb{display:block;border-radius:10px;overflow:hidden;background:#F5F2EA;border:1px solid var(--line)}
+.doc-thumb img{display:block;width:100%;max-height:180px;object-fit:contain}
 .todos{gap:6px;background:linear-gradient(165deg,rgba(206,226,220,.34),rgba(128,158,150,.18)),var(--surface);border:1.5px solid rgba(226,240,235,.55)}
 .todos h3{margin:0;font-size:15px;font-weight:500;color:var(--ink);display:flex;align-items:center;gap:10px;letter-spacing:.08em}
 .todos h3 .n{font-family:var(--mono);color:var(--brass-lite)}
@@ -446,8 +471,9 @@ body.speaking .sound i{animation-name:sound;animation-duration:1.15s;animation-t
     <section class="view" id="v-docs" hidden>
       <div class="card hero">
         <h3>회사 문서</h3>
-        <p>승인원·작업표준서 등을 올려 두면 Lobby가 바로 읽어 두고, 물으면 찾아서 보여 주고 읽어 줍니다.</p>
-        <div class="kinds"><span class="chip d">PDF</span><span class="chip d">워드(docx)</span><span class="chip d">엑셀</span><span class="chip d">파워포인트(pptx)</span><span class="chip d">사진(글자 인식)</span><span class="chip d">텍스트</span></div>
+        <p>승인원·도면·작업표준서·제품사진을 올려 두면 Lobby가 바로 읽어 두고, 물으면 치수·적용 원료를 찾아 답하고 도면·사진을 보여 줍니다.</p>
+        <div class="kinds"><span class="chip d">PDF</span><span class="chip d">워드(docx)</span><span class="chip d">엑셀</span><span class="chip d">파워포인트(pptx)</span><span class="chip d">사진(도면·제품)</span><span class="chip d">텍스트</span></div>
+        <p>파일을 고르면 올리기 전에 파일마다 <b>품번</b>(예: CR-747)·<b>제품명/품명</b>(예: 리모컨 하부 케이스)·<b>메모</b>(예: 제품사진)를 적을 수 있습니다. Lobby가 파일 이름을 보고 미리 채워 두니 확인만 해 주세요. 파일 이름이 IMG_1234.jpg여도 이 말로 물으면 찾아 드립니다.</p>
         <input type="file" id="docFile" multiple hidden accept=".pdf,.docx,.xlsx,.xls,.xlsm,.pptx,.txt,.csv,.md,image/jpeg,image/png,image/gif,image/webp">
         <div class="btns">
           <button class="btn" id="btnReindex">실패한 문서 다시 읽기</button>
@@ -455,6 +481,7 @@ body.speaking .sound i{animation-name:sound;animation-duration:1.15s;animation-t
         </div>
         <div id="upProg" class="view" style="gap:4px"></div>
       </div>
+      <div id="upPlan" class="card accent up-plan" hidden></div>
       <div class="count" id="docCount"></div>
       <div id="docList" class="view"></div>
     </section>
@@ -898,12 +925,58 @@ function answerHTML(r) {
     <div class="speak">${esc(r.speech)}</div>
     ${stats.length ? `<div class="stats">${stats.join('')}</div>` : ''}
     ${r.detail ? `<div class="detail">${esc(r.detail)}</div>` : ''}
-    ${dv.length ? `<details class="evi" open><summary>참고한 문서 ${dv.length}건</summary>${dv.map(d => `
-      <div class="doc-ev">${d.링크 ? `<a href="${esc(d.링크)}" target="_blank" rel="noopener">${esc(d.파일명)}</a>` : `<b>${esc(d.파일명)}</b>`}<small>${esc(d.위치 || '')}</small><small>${esc(d.발췌)}…</small></div>`).join('')}</details>` : ''}
+    ${dv.length ? `<details class="evi" open><summary>참고한 문서 ${dv.length}건</summary>${docEvidenceHTML(dv)}</details>` : ''}
     ${ev.length ? `<details class="evi"><summary>근거 기록 ${ev.length}건 보기</summary>${ev.map(x => `
       <div class="mini"><span class="date">${esc(shortDate(x.대상일))}</span><span class="ttl">${esc(x.제목)}</span>${x.금액 != null ? `<span class="amt">${won(x.금액)}</span>` : ''}</div>`).join('')}</details>` : ''}
   </div>`;
 }
+/** 참고한 문서 목록: 도면·사진은 미리보기를 붙인다(같은 쪽은 한 번만, 답변당 3장까지) */
+function docEvidenceHTML(dv) {
+  const seen = {};
+  let shots = 0;
+  return dv.map(d => {
+    const key = d.파일ID + ':' + (d.형식 === 'PDF' ? d.쪽 || 1 : 0);
+    const want = d.링크 && !seen[key] && shots < 3 && (d.형식 === '이미지' || d.형식 === 'PDF');
+    if (want) { seen[key] = 1; shots++; }
+    const shot = !want ? '' : d.형식 === '이미지'
+      ? `<a class="shot" href="${esc(d.링크)}" target="_blank" rel="noopener"><img src="${esc(d.링크)}" alt="${esc(d.파일명)}" loading="lazy"><span class="zoom">크게 보기</span></a>`
+      : `<a class="shot pdf" href="${esc(d.링크)}#page=${Number(d.쪽) || 1}" target="_blank" rel="noopener"><canvas data-pdf="${esc(d.링크)}" data-page="${Number(d.쪽) || 1}"></canvas><span class="zoom">p.${Number(d.쪽) || 1} 크게 보기</span></a>`;
+    return `<div class="doc-ev">${d.링크 ? `<a href="${esc(d.링크)}" target="_blank" rel="noopener">${esc(d.파일명)}</a>` : `<b>${esc(d.파일명)}</b>`}${d.품번 || d.품명 || d.메모 ? `<small>${esc([d.품번, d.품명, d.메모].filter(Boolean).join(' · '))}</small>` : ''}${shot}<small>${esc(d.위치 || '')}</small><small>${esc(d.발췌)}…</small></div>`;
+  }).join('');
+}
+/* PDF 미리보기: pdf.js(필요할 때만 불러옴)로 근거가 된 쪽을 그림으로 그린다 */
+const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+let pdfjsP = null;
+function loadPdfJs() {
+  return pdfjsP = pdfjsP || new Promise((resolve, reject) => {
+    const sc = document.createElement('script');
+    sc.src = PDFJS + 'pdf.min.js';
+    sc.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js'; resolve(window.pdfjsLib); };
+    sc.onerror = () => { pdfjsP = null; reject(new Error('pdf.js')); };
+    document.head.appendChild(sc);
+  });
+}
+async function renderPdfShots(root) {
+  const list = [...root.querySelectorAll('canvas[data-pdf]')];
+  if (!list.length) return;
+  let lib;
+  try { lib = await loadPdfJs(); } catch { list.forEach(c => c.closest('.shot').classList.add('fail')); return; }
+  for (const cv of list) {
+    const box = cv.closest('.shot');
+    try {
+      const pdf = await lib.getDocument({ url: cv.dataset.pdf }).promise;
+      const page = await pdf.getPage(Math.min(Number(cv.dataset.page) || 1, pdf.numPages));
+      const base = page.getViewport({ scale: 1 });
+      const px = Math.min(1600, (box.clientWidth || 320) * Math.min(window.devicePixelRatio || 1, 2));   // 도면 선이 또렷하게, 너무 크지는 않게
+      const vp = page.getViewport({ scale: px / base.width });
+      cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+      await page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+      box.classList.add('ok');
+      pdf.destroy();
+    } catch { box.classList.add('fail'); }
+  }
+}
+
 function taskWhen(t) {
   const when = t.반복 === '매일' ? '매일' : t.반복 === '매주' ? `매주 ${String(t.요일 || '').replace(/,/g, '·')}` : t.반복 === '매월' ? `매월 ${t.날짜}일` : `${t.날짜}`;
   return `${when} ${t.시각}`;
@@ -1045,6 +1118,7 @@ async function talk(text, voice = false) {
     return;
   }
   slot.outerHTML = answerHTML(r);
+  renderPdfShots(wrap);
   wrap.querySelector('[data-replay]')?.addEventListener('click', () => say(r.speech));
   S.history.push({ q: text, a: r.speech });
   if (S.history.length > 12) S.history = S.history.slice(-12);
@@ -1181,10 +1255,18 @@ function applyDocs(r) {
   box.innerHTML = S.docs.map((d, i) => `
     <div class="card doc">
       <div class="row"><span class="chip d">${esc(d.형식)}</span><span class="name ttl">${esc(d.파일명)}</span></div>
+      ${d.품번 || d.품명 || d.메모 ? `<div class="row">${d.품번 ? `<span class="chip p">${esc(d.품번)}</span>` : ''}${d.품명 ? `<span class="chip c">${esc(d.품명)}</span>` : ''}${d.메모 ? `<span class="chip m">${esc(d.메모)}</span>` : ''}</div>` : ''}
+      ${S.memoEdit === d.파일ID ? `<div class="memo-edit"><div class="form">
+          <label class="fld"><span>품번</span><input id="mePart" maxlength="40" autocomplete="off" value="${esc(d.품번 || '')}" placeholder="예) CR-747"></label>
+          <label class="fld"><span>제품명·품명</span><input id="meProduct" maxlength="60" autocomplete="off" value="${esc(d.품명 || '')}" placeholder="예) 리모컨 하부 케이스"></label>
+          <label class="fld wide"><span>메모</span><input id="meMemo" maxlength="100" autocomplete="off" value="${esc(d.메모 || '')}" placeholder="예) 제품사진 · 도면 Rev.C"></label></div>
+        <div class="btns"><button class="btn sm ghost" data-memo-cancel>취소</button><button class="btn sm pri" data-memo-save="${i}">저장</button></div></div>` : ''}
+      ${d.형식 === '이미지' && d.링크 ? `<a class="doc-thumb" href="${esc(d.링크)}" target="_blank" rel="noopener"><img src="${esc(d.링크)}" alt="${esc(d.파일명)}" loading="lazy"></a>` : ''}
       <div class="meta">${d.크기 ? fileSize(d.크기) + ' · ' : ''}조각 ${d.조각수} · 올림 ${esc(d.수정일시 || '-')}</div>
       ${d.상태 !== '완료' ? `<div class="err-txt">${esc(d.상태)}</div>` : ''}
       <div class="btns">
         <button class="btn sm ghost" data-del-doc="${i}">삭제</button>
+        <button class="btn sm ghost" data-memo-doc="${i}">${d.품번 || d.품명 || d.메모 ? '품번·품명 수정' : '품번·품명'}</button>
         ${d.링크 ? `<a class="btn sm" href="${esc(d.링크)}" target="_blank" rel="noopener">열기</a>` : ''}
         ${d.조각수 > 0 ? `<button class="btn sm" data-read-doc="${i}">${S.reading === d.파일ID ? '읽기 멈춤' : '읽어 주기'}</button><button class="btn sm pri" data-ask-doc="${i}">이 문서에 묻기</button>` : ''}
       </div>
@@ -1200,18 +1282,136 @@ async function reindex() {
   finally { b.disabled = false; b.textContent = '실패한 문서 다시 읽기'; }
 }
 /** 파일 올리기: 서버에서 올릴 주소를 받아 저장소에 직접 올린 뒤, 서버가 내용을 읽어 두게 한다 */
-async function uploadDocs(files) {
-  const list = [...files]; if (!list.length) return;
+/** 큰 사진은 올리기 전에 줄인다 (긴 변 3000px, 3.5MB 이하 JPEG) — Lobby가 읽을 수 있는 크기로 */
+async function shrinkImage(f) {
+  if (!/^image\/(jpeg|png|webp)$/.test(f.type) || f.size <= 3.5 * 1048576) return f;
+  try {
+    const bmp = await createImageBitmap(f);
+    const k = Math.min(1, 3000 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(bmp, 0, 0, c.width, c.height);
+    let q = 0.88, blob;
+    do { blob = await new Promise(r => c.toBlob(r, 'image/jpeg', q)); q -= 0.12; } while (blob && blob.size > 3.5 * 1048576 && q > 0.4);
+    return blob ? new File([blob], f.name.replace(/\.(png|webp|jpe?g)$/i, '') + '.jpg', { type: 'image/jpeg' }) : f;
+  } catch { return f; }
+}
+/** 문서 카드에서 품번·메모 고치기 (카드 안에 입력칸이 열린다) */
+function editDocMemo(i) {
+  const d = S.docs[i]; if (!d) return;
+  S.memoEdit = S.memoEdit === d.파일ID ? null : d.파일ID;
+  applyDocs({ docs: S.docs });
+  if (S.memoEdit) setTimeout(() => $('#mePart')?.focus(), 30);
+}
+async function saveDocMemo(i, btn) {
+  const d = S.docs[i]; if (!d) return;
+  const part = $('#mePart').value.trim(), product = $('#meProduct').value.trim(), memo = $('#meMemo').value.trim();
+  btn.disabled = true;
+  try {
+    S.memoEdit = null;
+    applyDocs(await api('docMemo', { id: d.파일ID, part, product, memo }));
+    toast(part || product || memo ? '품번·품명·메모를 저장했습니다' : '품번·품명·메모를 지웠습니다');
+  } catch (e) { S.memoEdit = d.파일ID; toast(e.message, true); btn.disabled = false; }
+}
+
+/* 올리기 전 확인: 고른 파일마다 품번·제품명(품명)·메모를 적는다 (파일 이름을 보고 짐작해 미리 채움) */
+const PHOTO_NAME = /^(IMG|DSC|DSCN|PXL|KAKAOTALK|SCREENSHOT|SCAN|VID|MOV|PHOTO|IMAGE|REV|사진|스크린샷)/i;
+function guessPart(name) {
+  const base = String(name).split(/[\\/]/).pop().replace(/\.[^.]+$/, '');
+  if (PHOTO_NAME.test(base)) return '';
+  const m = base.match(/[A-Za-z]{1,6}[-_ ]?\d{2,6}(?:-[A-Za-z0-9]{1,4})?/);
+  return m && !PHOTO_NAME.test(m[0]) ? m[0].replace(/[_ ]/, '-').toUpperCase() : '';
+}
+// 파일 이름에 들어 있는 문서 종류 → 메모 기본값
+const DOC_TYPES = [['도면', /(도면|drawing|dwg|dxf|외형도|조립도|부품도|제작도|금형도|assy)/i], ['승인원', /(승인원|approval)/i], ['작업표준서', /(작업\s*표준서?|표준서|sop)/i],
+  ['검사기준서', /(검사\s*기준서?|inspection)/i], ['성적서', /(성적서|test\s*report)/i], ['사양서', /(사양서|spec)/i], ['BOM', /(bom|부품\s*목록)/i], ['카탈로그', /(카탈로그|catalog)/i]];
+const NOISE = /(최종|final|수정본|사본|copy|복사본|스캔|scan|사진|photo|image|이미지|\(\d+\)|\b\d{6,8}\b|\b\d{4}[-.]\d{2}[-.]\d{2}\b)/gi;
+/** 파일 이름 → { 품번, 제품명·품명, 메모 } 짐작 (예: "CR-747 리모컨 하부케이스 도면_RevC.pdf" → CR-747 / 리모컨 하부케이스 / 도면 Rev.C) */
+function guessMeta(name) {
+  const base = String(name).split(/[\\/]/).pop().replace(/\.[^.]+$/, '');
+  const isImg = /\.(jpe?g|png|gif|webp|heic)$/i.test(name);
+  const part = guessPart(name);
+  const type = (DOC_TYPES.find(([, re]) => re.test(base)) || [])[0] || (isImg ? '제품사진' : '');
+  const rv = base.match(/(?:^|[\s_\-.(])rev\.?\s*([a-z0-9]{1,3})(?=$|[\s_\-.)])/i);
+  let product = '';
+  if (!PHOTO_NAME.test(base)) {
+    let t = base;
+    if (part) t = t.replace(new RegExp(part.split('-').map(x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[-_\\s]?'), 'i'), ' ');
+    DOC_TYPES.forEach(([, re]) => { t = t.replace(new RegExp(re.source, 'gi'), ' '); });
+    t = t.replace(/(?:^|[\s_\-.(])rev\.?\s*[a-z0-9]{1,3}(?=$|[\s_\-.)])/gi, ' ').replace(NOISE, ' ').replace(/[_\-.()[\]]+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (t.length >= 2 && !/^[\d\s]+$/.test(t)) product = t;
+  }
+  return { part, product, memo: [type, rv ? 'Rev.' + rv[1].toUpperCase() : ''].filter(Boolean).join(' ') };
+}
+function kindLabel(name) {
+  const e = (String(name).split('.').pop() || '').toLowerCase();
+  return { pdf: 'PDF', docx: '워드', xlsx: '엑셀', xls: '엑셀', xlsm: '엑셀', pptx: '파워포인트', jpg: '사진', jpeg: '사진', png: '사진', gif: '사진', webp: '사진', txt: '텍스트', csv: '텍스트', md: '텍스트' }[e] || e.toUpperCase();
+}
+function openUploadPlan(files) {
+  S.upPlan = [...files].map(f => { const g = guessMeta(f.name); return { f, ...g, guessed: { ...g } }; });
+  if (!S.upPlan.length) return;
+  renderUploadPlan();
+  $('#upPlan').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function collectUploadPlan() {
+  (S.upPlan || []).forEach((it, i) => {
+    const v = k => { const el = document.querySelector(`[data-up-${k}="${i}"]`); return el ? el.value.trim() : null; };
+    ['part', 'product', 'memo'].forEach(k => { const x = v(k); if (x !== null) it[k] = x; });
+  });
+}
+function renderUploadPlan() {
+  const box = $('#upPlan'), list = S.upPlan || [];
+  const g = (it, k) => it[k] && it.guessed && it[k] === it.guessed[k] ? 'guess' : '';       // 짐작한 값 그대로면 금색 테두리
+  if (!list.length) { box.hidden = true; box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="sec-title"><span>올리기 전 확인</span><span>${list.length}개</span></div>
+    <div class="up-note">✦ 파일 이름을 보고 Lobby가 짐작해 채운 칸은 테두리가 금색입니다. 틀린 곳만 고쳐 주세요. 품번·품명을 비워 두면 도면 표제란에서 읽어 채웁니다.</div>
+    ${list.length > 1 ? `<div class="up-all">
+      <label class="fld"><span>품번 (모든 파일에)</span><input id="upAllPart" maxlength="40" autocomplete="off" placeholder="예) CR-747"></label>
+      <label class="fld"><span>제품명·품명 (모든 파일에)</span><input id="upAllProduct" maxlength="60" autocomplete="off" placeholder="예) 리모컨 하부 케이스"></label>
+      <label class="fld wide"><span>메모 (모든 파일에)</span><input id="upAllMemo" maxlength="100" autocomplete="off" placeholder="예) 제품사진"></label>
+      <button class="btn sm" id="upApplyAll">모두에 적용</button></div>` : ''}
+    ${list.map((it, i) => `<div class="up-item">
+      <div class="up-name"><span class="chip d">${esc(kindLabel(it.f.name))}</span><b>${esc(it.f.name)}</b><small>${fileSize(it.f.size)}</small>
+        ${list.length > 1 ? `<button class="btn sm ghost" data-up-drop="${i}">빼기</button>` : ''}</div>
+      <div class="form">
+        <label class="fld"><span>품번</span><input data-up-part="${i}" class="${g(it, 'part')}" maxlength="40" autocomplete="off" value="${esc(it.part)}" placeholder="예) CR-747"></label>
+        <label class="fld"><span>제품명·품명</span><input data-up-product="${i}" class="${g(it, 'product')}" maxlength="60" autocomplete="off" value="${esc(it.product)}" placeholder="예) 리모컨 하부 케이스"></label>
+        <label class="fld wide"><span>메모</span><input data-up-memo="${i}" class="${g(it, 'memo')}" maxlength="100" autocomplete="off" value="${esc(it.memo)}" placeholder="예) 제품사진 · 도면 Rev.C"></label>
+      </div></div>`).join('')}
+    <div class="btns"><button class="btn" id="upCancel">취소</button><button class="btn pri" id="upGo">올리기 (${list.length}개)</button></div>`;
+  box.hidden = false;
+}
+$('#upPlan').addEventListener('input', e => { if (e.target.classList.contains('guess')) e.target.classList.remove('guess'); });
+$('#upPlan').addEventListener('click', e => {
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.id === 'upApplyAll') {
+    const p = $('#upAllPart').value.trim(), pr = $('#upAllProduct').value.trim(), m = $('#upAllMemo').value.trim();
+    collectUploadPlan();
+    S.upPlan.forEach(it => { if (p) it.part = p; if (pr) it.product = pr; if (m) it.memo = m; });
+    renderUploadPlan(); toast('모든 파일에 적용했습니다');
+  } else if (t.dataset.upDrop != null) {
+    collectUploadPlan(); S.upPlan.splice(Number(t.dataset.upDrop), 1); renderUploadPlan();
+  } else if (t.id === 'upCancel') {
+    S.upPlan = []; renderUploadPlan(); $('#docFile').value = '';
+  } else if (t.id === 'upGo') {
+    collectUploadPlan();
+    const items = S.upPlan; S.upPlan = []; renderUploadPlan();
+    uploadDocs(items);
+  }
+});
+async function uploadDocs(items) {
+  const list = items.map(it => it.f); if (!list.length) return;
   const b = $('#btnUpload'), prog = $('#upProg'); b.disabled = true;
   prog.innerHTML = list.map((f, i) => `<div class="up-line" data-up="${i}"><b>${esc(f.name)}</b><span>대기</span></div>`).join('');
   const mark = (i, t, cls) => { const el = prog.querySelector(`[data-up="${i}"]`); el.className = 'up-line' + (cls ? ' ' + cls : ''); el.lastChild.textContent = t; };
   let done = 0;
   for (let i = 0; i < list.length; i++) {
-    const f = list[i];
+    let f = list[i];
     try {
+      if (/^image\//.test(f.type)) { mark(i, '사진 크기 맞추는 중…'); f = await shrinkImage(f); }
       if (f.size > (S.maxMb || 50) * 1048576) throw new Error(`${S.maxMb || 50}MB를 넘습니다`);
       mark(i, '올리는 중…');
-      const u = await api('uploadUrl', { name: f.name, size: f.size, type: f.type });
+      const u = await api('uploadUrl', { name: f.name, size: f.size, type: f.type, part: items[i].part, product: items[i].product, memo: items[i].memo });
       if (!isDemo()) {
         const res = await fetch(u.uploadUrl, { method: 'PUT', headers: { 'content-type': f.type || 'application/octet-stream' }, body: f });
         if (!res.ok) throw new Error('올리기에 실패했습니다');
@@ -1785,7 +1985,7 @@ document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () =>
 $('#todoCard').addEventListener('change', e => { if (e.target.matches('[data-todo]')) toggleTodo(e.target); });
 $('#micLog').addEventListener('click', listenLog);
 $('#btnUpload').addEventListener('click', () => $('#docFile').click());
-$('#docFile').addEventListener('change', e => uploadDocs(e.target.files));
+$('#docFile').addEventListener('change', e => openUploadPlan(e.target.files));
 
 /* 음파: 구슬 양옆으로 퍼지는 청동·청록 물결. 구슬에 가까울수록 크게 출렁이고, 듣는 동안(.on) 더 크고 빠르다 */
 (function waves() {
@@ -1886,6 +2086,9 @@ document.addEventListener('click', e => {
   if (d.taskNo) return void dropTask(d.taskNo);
   if (d.readDoc != null) return void readDoc(Number(d.readDoc));
   if (d.delDoc != null) return void deleteDoc(Number(d.delDoc));
+  if (d.memoDoc != null) return void editDocMemo(Number(d.memoDoc));
+  if (d.memoSave != null) return void saveDocMemo(Number(d.memoSave), t);
+  if (d.memoCancel != null) { S.memoEdit = null; return void applyDocs({ docs: S.docs }); }
   if (d.askDoc != null) {
     const doc = S.docs[Number(d.askDoc)]; if (!doc) return;
     show('talk'); $('#txtTalk').value = `‘${doc.파일명}’에서 `; autoGrow($('#txtTalk')); $('#txtTalk').focus(); return;
@@ -1964,8 +2167,27 @@ const Demo = (() => {
   const t = ymd(new Date());
   const addDays = n => { const d = new Date(); d.setDate(d.getDate() + n); return ymd(d); };
   const now = () => t + ' ' + new Date().toTimeString().slice(0, 5);
+  // 데모용 도면·제품사진 (실제 앱에서는 올린 파일이 그대로 보인다)
+  const svgUrl = x => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(x);
+  const DEMO_DWG = svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" font-family="monospace" font-size="13" fill="#1F3A5F" stroke="#1F3A5F">
+    <rect width="640" height="420" fill="#fff" stroke="none"/><rect x="8" y="8" width="624" height="404" fill="none" stroke-width="2"/>
+    <rect x="90" y="90" width="300" height="150" rx="14" fill="none" stroke-width="2.5"/>
+    <g fill="none" stroke-width="1.6"><circle cx="118" cy="118" r="7"/><circle cx="362" cy="118" r="7"/><circle cx="118" cy="212" r="7"/><circle cx="362" cy="212" r="7"/><rect x="200" y="140" width="80" height="50" rx="6"/></g>
+    <g stroke-width="1"><path d="M90 60V82M390 60V82M90 68H390"/><path d="M60 90H82M60 240H82M68 90V240"/><path d="M90 68l8-3v6zM390 68l-8-3v6zM68 90l-3 8h6zM68 240l-3-8h6z" fill="#1F3A5F"/><path d="M125 112l40-36H210"/></g>
+    <g stroke="none"><text x="200" y="62">142.0 ±0.05</text><text x="20" y="170" transform="rotate(-90 40 165)">68.0 ±0.05</text><text x="168" y="72">4-Ø3.2 +0.1/0</text><text x="206" y="210">버튼창 40×25</text><text x="300" y="262">R7 (4곳)</text>
+    <text x="440" y="110">일반공차 ±0.1</text><text x="440" y="130">사출 후 버 제거</text></g>
+    <rect x="410" y="300" width="214" height="104" fill="none" stroke-width="1.5"/><path d="M410 326H624M410 352H624M410 378H624M490 300V404" stroke-width="1"/>
+    <g stroke="none" font-size="12"><text x="418" y="318">품번</text><text x="498" y="318">CR-747</text><text x="418" y="344">재질</text><text x="498" y="344">PC+ABS HF-1023</text><text x="418" y="370">척도/단위</text><text x="498" y="370">1:1 / mm</text><text x="418" y="396">도번 Rev</text><text x="498" y="396">CR747-01 / C</text></g></svg>`);
+  const DEMO_PHOTO = svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420"><defs><radialGradient id="bg" cx=".5" cy=".4" r=".8"><stop offset="0" stop-color="#f4f1ea"/><stop offset="1" stop-color="#cfc8bb"/></radialGradient>
+    <linearGradient id="p" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fdfdfb"/><stop offset=".6" stop-color="#e9e7e1"/><stop offset="1" stop-color="#c9c6be"/></linearGradient>
+    <linearGradient id="w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b4a55"/><stop offset="1" stop-color="#1c252c"/></linearGradient></defs>
+    <rect width="640" height="420" fill="url(#bg)"/><ellipse cx="320" cy="330" rx="230" ry="26" fill="#000" opacity=".18"/>
+    <rect x="110" y="100" width="420" height="210" rx="34" fill="url(#p)" stroke="#b9b5ab" stroke-width="2"/>
+    <rect x="270" y="165" width="100" height="62" rx="10" fill="url(#w)"/><rect x="278" y="171" width="84" height="12" rx="6" fill="#fff" opacity=".18"/>
+    <g fill="#d8d4cb" stroke="#aaa59a"><circle cx="150" cy="140" r="9"/><circle cx="490" cy="140" r="9"/><circle cx="150" cy="270" r="9"/><circle cx="490" cy="270" r="9"/></g>
+    <text x="320" y="285" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#8d887d">CR-747</text></svg>`);
   const cats = ['차량','생활','미용/자기관리','외식/모임','가족행사','여가/취미','여행','업무','재테크','앱개발','건강/진료'].map(n => ({ name: n, desc: '' }));
-  let seq = 10, demoCost = 1240, demoCalls = 18;
+  let seq = 10, demoCost = 1240, demoCalls = 18, lastMeta = {};
   // 데모용 알림 계산 (실제 앱에서는 서버가 계산)
   const alarmAt = r => {
     if (r.상태 !== '예정' || r.알림 === '' || r.알림 == null || !/^\d{4}-\d{2}-\d{2}$/.test(r.대상일 || '')) return '';
@@ -1987,9 +2209,11 @@ const Demo = (() => {
     { ID: 'D-005', 입력일시: addDays(-4) + ' 17:30', 대상일: addDays(-4), 대상시각: '', 유형: '특이점', 분류: '업무', 제목: '사출 3호기 온도 경보', 내용: '오후에 온도 경보 2회', 금액: null, 인물: '', 장소: '공장', 태그: '3호기, 경보', 상태: '정상', 원문: '사출 3호기 오후에 온도 경보 두 번 떴어', 수정일시: '', 삭제일시: '' },
   ];
   const docs = [
-    { 파일ID: 'F1', 파일명: '승인원/CR-747 승인원_Rev3.pdf', 형식: 'PDF', 수정일시: addDays(-5) + ' 10:00', 조각수: 18, 읽은일시: addDays(-5) + ' 11:00', 상태: '완료', 링크: '' },
+    { 파일ID: 'F1', 파일명: '승인원/CR-747 승인원_Rev3.pdf', 형식: 'PDF', 수정일시: addDays(-5) + ' 10:00', 조각수: 18, 읽은일시: addDays(-5) + ' 11:00', 상태: '완료', 링크: '', 품번: 'CR-747', 품명: '리모컨 하부 케이스', 메모: '승인원 Rev3' },
     { 파일ID: 'F2', 파일명: '작업표준서/FPR-400 사출 작업표준서.docx', 형식: '워드', 수정일시: addDays(-9) + ' 09:00', 조각수: 7, 읽은일시: addDays(-9) + ' 10:00', 상태: '완료', 링크: '' },
     { 파일ID: 'F3', 파일명: '검사기준/외관 검사 기준표.xlsx', 형식: '엑셀', 수정일시: addDays(-2) + ' 16:00', 조각수: 4, 읽은일시: addDays(-2) + ' 17:00', 상태: '완료', 링크: '' },
+    { 파일ID: 'F5', 파일명: '도면/CR-747_도면_RevC.png', 형식: '이미지', 수정일시: addDays(-3) + ' 09:30', 조각수: 1, 읽은일시: addDays(-3) + ' 09:31', 상태: '완료', 링크: DEMO_DWG, 품번: 'CR-747', 품명: '리모컨 하부 케이스', 메모: '도면 Rev.C' },
+    { 파일ID: 'F6', 파일명: 'IMG_2481.jpg', 형식: '이미지', 수정일시: addDays(-3) + ' 09:32', 조각수: 1, 읽은일시: addDays(-3) + ' 09:33', 상태: '완료', 링크: DEMO_PHOTO, 품번: 'CR-747', 품명: '리모컨 하부 케이스', 메모: '제품사진' },
     { 파일ID: 'F4', 파일명: '구매사양서.hwp', 형식: '미지원', 수정일시: addDays(-1) + ' 14:00', 조각수: 0, 읽은일시: addDays(-1) + ' 15:00', 상태: '미지원(한글 HWP는 PDF로 저장해 넣어 주세요)', 링크: '' },
   ];
   let reports = [
@@ -2045,6 +2269,13 @@ const Demo = (() => {
           return { intent: '예약', task, speech: `${taskWhen(task)}에 “${task.요청}”을 수행합니다. 이렇게 예약할까요?` };
         }
         if (/(했어|샀어|갔어|먹었|만원|만 원|천원|천 원|해야|사야|갈아야|알려|깨워|미팅|회의|약속)/.test(q) && action === 'talk') return { intent: '기록', ...parseDemo(q) };
+        if (/(도면|사진|치수|원료|재질|생겼)/.test(q)) {
+          return { intent: '질문', speech: 'CR-747 도면 기준으로 전장은 142.0밀리미터 ±0.05, 폭은 68.0밀리미터 ±0.05이고, 적용 원료는 PC+ABS HF-1023입니다. 도면과 제품사진을 화면에 띄워 드렸습니다. (데모 답변)',
+            detail: '• 정면도 - 전장: 142.0 ±0.05 mm (CR-747 도면 · 사진)\n• 측면도 - 폭: 68.0 ±0.05 mm\n• 체결 구멍: 4-Ø3.2 +0.1/0\n• 재질: PC+ABS HF-1023 (표제란)\n• 일반공차 ±0.1, 사출 후 버 제거',
+            docEvidence: [{ 파일ID: 'F5', 파일명: '도면/CR-747_도면_RevC.png', 형식: '이미지', 품번: 'CR-747', 품명: '리모컨 하부 케이스', 메모: '도면 Rev.C', 위치: '사진', 쪽: 1, 링크: DEMO_DWG, 발췌: '종류: 도면 ■ 표제란: 품번: CR-747, 재질: PC+ABS HF-1023, 척도 1:1 ■ 치수: 정면도 - 전장: 142.0 ±0.05 mm' },
+              { 파일ID: 'F6', 파일명: 'IMG_2481.jpg', 형식: '이미지', 품번: 'CR-747', 품명: '리모컨 하부 케이스', 메모: '제품사진', 위치: '사진', 쪽: 1, 링크: DEMO_PHOTO, 발췌: '종류: 제품사진 설명: 흰색 무광 플라스틱 사각 케이스, 가운데 어두운 버튼창, 네 모서리 체결 구멍' }],
+            evidence: [], stats: null };
+        }
         if (/(승인원|표준서|검사|규격|공차|CR-?747|FPR)/i.test(q)) {
           return { intent: '질문', speech: 'CR-747 승인원 기준으로 외관, 치수, 기능 세 가지를 검사합니다. 치수 공차는 ±0.05mm입니다. (데모 답변)',
             detail: '• 외관: 흑점·흐름자국·웰드라인 없음 (CR-747 승인원 · p.4)\n• 치수: 전장 142.0±0.05mm (CR-747 승인원 · p.6)\n• 기능: 버튼 작동력 250±50gf (CR-747 승인원 · p.7)',
@@ -2074,13 +2305,14 @@ const Demo = (() => {
       }
       if (action === 'docs') return { docs, maxMb: 50 };
       if (action === 'reindex') { await wait(900); return { done: 0, pending: 0, errors: 0, docs }; }
-      if (action === 'uploadUrl') return { id: 'F' + Date.now(), uploadUrl: 'demo' };
+      if (action === 'uploadUrl') { lastMeta = { 품번: String(d.part || '').toUpperCase(), 품명: d.product || '', 메모: d.memo || '' }; return { id: 'F' + Date.now(), uploadUrl: 'demo' }; }
       if (action === 'indexDoc') {
         const ext = (d.name || '').split('.').pop().toLowerCase();
         const kind = { pdf: 'PDF', docx: '워드', xlsx: '엑셀', xls: '엑셀', pptx: '파워포인트', txt: '텍스트', csv: '텍스트', md: '텍스트', jpg: '이미지', jpeg: '이미지', png: '이미지' }[ext] || '미지원';
-        docs.push({ 파일ID: d.id, 파일명: d.name, 형식: kind, 크기: d.size, 수정일시: now(), 조각수: kind === '미지원' ? 0 : 3, 읽은일시: now(), 상태: kind === '미지원' ? '미지원(' + ext + ')' : '완료', 링크: '' });
+        docs.push({ ...lastMeta, 파일ID: d.id, 파일명: d.name, 형식: kind, 크기: d.size, 수정일시: now(), 조각수: kind === '미지원' ? 0 : 3, 읽은일시: now(), 상태: kind === '미지원' ? '미지원(' + ext + ')' : '완료', 링크: '' });
         return { status: kind === '미지원' ? '미지원(' + ext + ')' : '완료', docs };
       }
+      if (action === 'docMemo') { const x = docs.find(k => k.파일ID === d.id); if (x) { x.품번 = String(d.part || '').toUpperCase(); x.품명 = d.product || ''; x.메모 = d.memo; } return { docs }; }
       if (action === 'deleteDoc') { const i = docs.findIndex(x => x.파일ID === d.id); if (i >= 0) docs.splice(i, 1); return { docs }; }
       if (action === 'readDoc') return { text: d.from > 1 ? '' : '데모 문서입니다. 실제 앱에서는 올려 둔 문서의 본문을 처음부터 읽어 드립니다. 외관 검사 기준. 흑점, 흐름자국, 웰드라인이 육안으로 확인되지 않을 것.', next: 0 };
       if (action === 'reports') return { reports, tasks };
