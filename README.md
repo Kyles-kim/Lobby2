@@ -52,3 +52,13 @@ API 키·접속 암호는 Supabase의 비밀 값에만 저장하며, 이 저장�
 1. SQL Editor에서 `supabase/migrations/20261008000000_docs_media.sql` 실행 (문서 품번·제품명·메모 칸)
 2. 서버 다시 배포: `supabase functions deploy api`
 3. 이미 올려 둔 도면은 문서 카드에서 삭제 후 다시 올리면 새 방식(도면 판독)으로 읽습니다. 파일 이름에 "도면"을 넣거나 품번·메모에 "도면"을 적어 두면 확실하게 도면으로 읽습니다.
+
+## 서버 자동 배포 (선택)
+
+앱 화면은 저장소에 올리면 바로 바뀌지만, 서버(Edge Function)는 따로 배포해야 합니다. 서버를 다시 배포하지 않으면 새 기능을 쓸 때 "Lobby 서버가 앱보다 옛 버전" 안내가 뜹니다.
+GitHub 저장소 > Settings > Secrets and variables > Actions에 아래 두 값을 등록해 두면, main에 서버 코드가 바뀔 때마다 `.github/workflows/deploy-api.yml`이 자동으로 배포합니다 (Actions 탭에서 "Run workflow"로 바로 실행도 가능).
+
+- `SUPABASE_ACCESS_TOKEN`: supabase.com > Account > Access Tokens에서 만든 토큰
+- `SUPABASE_PROJECT_REF`: 서버 주소 `https://<PROJECT_REF>.supabase.co`의 `<PROJECT_REF>`
+
+표(DB) 변경은 자동으로 하지 않으니, 새 `supabase/migrations/` 파일이 생기면 SQL Editor에서 직접 실행해 주세요.
