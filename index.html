@@ -653,7 +653,11 @@ async function api(action, data = {}) {
     let j;
     try { j = JSON.parse(txt); }
     catch { last = new Error('서버가 답변을 끝내지 못했습니다(서버의 일시적인 오류이거나 처리 시간이 길었을 수 있습니다). 잠시 뒤 다시 시도해 주세요.'); continue; }
-    if (!j.ok) throw new Error(j.error || '서버 오류');       // 서버가 준 오류는 그대로 보여 주고 재시도하지 않음
+    if (!j.ok) {                                         // 서버가 준 오류는 그대로 보여 주고 재시도하지 않음
+      // 앱(화면)만 새로 올라가고 서버(Edge Function)는 다시 배포되지 않았을 때: 새 기능 요청을 서버가 모른다
+      if (/^알 수 없는 요청/.test(j.error || '')) throw new Error('Lobby 서버가 앱보다 옛 버전이라 이 기능을 아직 모릅니다. 서버를 다시 배포해 주세요 (supabase functions deploy api).');
+      throw new Error(j.error || '서버 오류');
+    }
     showUsage(j.usage);
     return j;
   }
@@ -1957,7 +1961,7 @@ function saveSettings(demo) {
 let toastT;
 function toast(msg, err) {
   const t = $('#toast'); t.textContent = msg; t.className = 'toast' + (err ? ' err' : ''); t.hidden = false;
-  clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, err ? 4200 : 2400);
+  clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, err ? Math.max(4200, String(msg).length * 90) : 2400);   // 긴 안내는 읽을 시간만큼 더 보여 준다
 }
 function autoGrow(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; }
 async function refreshCategories() { try { const r = await api('init'); S.categories = r.categories; } catch {} }
