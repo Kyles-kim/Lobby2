@@ -1748,7 +1748,7 @@ const Alarm = {
     try {
       const r = await api('alarms');
       this.list = r.alarms || [];
-      if (r.needsUpdate && !this.warned) { this.warned = true; toast('일정 알림을 쓰려면 서버 표 업데이트(alarms.sql)가 필요합니다', true); }
+      if (r.needsUpdate && !this.warned) { this.warned = true; toast('일정 알림을 쓰려면 서버 표 업데이트가 필요합니다. GitHub Actions에서 "Lobby 서버 배포"를 실행하거나, Supabase SQL Editor에서 alarms.sql을 실행해 주세요.', true); }
       renderAlarms(); this.check();
     } catch {}
   },
