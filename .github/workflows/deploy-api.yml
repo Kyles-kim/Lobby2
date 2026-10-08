@@ -11,9 +11,30 @@ on:
     branches: [main]
     paths: ['supabase/functions/**', 'supabase/migrations/**', 'supabase/config.toml', '.github/scripts/**']
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'deploy = 표 업데이트 + 서버 배포, diagnose = 알림 진단만 (읽기 전용)'
+        type: choice
+        options: [deploy, diagnose]
+        default: deploy
 
 jobs:
+  diagnose:
+    if: inputs.mode == 'diagnose'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 알림 진단 (읽기 전용)
+        env:
+          SB_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SB_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          export SB_TOKEN=$(printf '%s' "$SB_TOKEN" | tr -d '[:space:]')
+          export SB_REF=$(printf '%s' "$SB_REF" | tr -d '[:space:]' | sed -E 's#^https?://##; s#\.supabase\.co.*$##; s#/.*$##')
+          python3 .github/scripts/diagnose.py
+
   deploy:
+    if: inputs.mode != 'diagnose'
     runs-on: ubuntu-latest
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
