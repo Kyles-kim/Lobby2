@@ -24,12 +24,29 @@ jobs:
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$PROJECT_REF" ]; then
             echo "::warning::SUPABASE_ACCESS_TOKEN / SUPABASE_PROJECT_REF 비밀 값이 없어 자동 배포를 건너뜁니다. 직접 'supabase functions deploy api'로 배포해 주세요."
-            echo "skip=1" >> "$GITHUB_OUTPUT"
+            echo "skip=1" >> "$GITHUB_OUTPUT"; exit 0
           fi
+          # 붙여넣을 때 섞인 공백·줄바꿈을 지우고, 서버 주소 전체를 넣었으면 프로젝트 ID만 뽑는다
+          token=$(printf '%s' "$SUPABASE_ACCESS_TOKEN" | tr -d '[:space:]')
+          ref=$(printf '%s' "$PROJECT_REF" | tr -d '[:space:]' | sed -E 's#^https?://##; s#\.supabase\.co.*$##; s#/.*$##')
+          echo "::add-mask::$token"; echo "::add-mask::$ref"
+          echo "SB_TOKEN=$token" >> "$GITHUB_ENV"; echo "SB_REF=$ref" >> "$GITHUB_ENV"
+          # 값은 보여 주지 않고 모양과 권한만 확인해 무엇이 틀렸는지 알려 준다
+          case "$token" in sbp_*) ;; *) echo "::warning::SUPABASE_ACCESS_TOKEN이 'sbp_'로 시작하지 않습니다 (길이 ${#token}). Access Tokens에서 만든 토큰이 맞는지 확인해 주세요." ;; esac
+          echo "$ref" | grep -Eq '^[a-z0-9]{20}$' || echo "::warning::SUPABASE_PROJECT_REF가 프로젝트 ID 모양(영문 소문자·숫자 20자)이 아닙니다 (길이 ${#ref})."
+          code=$(curl -s -o projects.json -w '%{http_code}' -H "Authorization: Bearer $token" https://api.supabase.com/v1/projects)
+          if [ "$code" != 200 ]; then
+            echo "::error::토큰으로 Supabase 프로젝트 목록을 읽지 못했습니다 (HTTP $code). 토큰이 잘못됐거나 권한이 부족합니다. Access Tokens에서 전체 권한 토큰을 새로 만들어 등록해 주세요."
+          elif ! python3 -c 'import json,sys; sys.exit(0 if any(p.get("id")==sys.argv[1] or p.get("ref")==sys.argv[1] for p in json.load(open("projects.json"))) else 1)' "$ref"; then
+            echo "::error::토큰은 맞지만 SUPABASE_PROJECT_REF와 같은 프로젝트가 이 토큰으로 보이지 않습니다. 프로젝트 ID 또는 토큰의 대상 프로젝트를 확인해 주세요."
+          else
+            echo "토큰과 프로젝트 ID 확인 완료"
+          fi
+          rm -f projects.json
       - uses: supabase/setup-cli@v1
         if: steps.check.outputs.skip != '1'
         with:
           version: latest
       - name: Edge Function 배포
         if: steps.check.outputs.skip != '1'
-        run: supabase functions deploy api --project-ref "$PROJECT_REF"
+        run: SUPABASE_ACCESS_TOKEN="$SB_TOKEN" supabase functions deploy api --project-ref "$SB_REF"
