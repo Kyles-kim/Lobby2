@@ -26,7 +26,11 @@ create index if not exists records_status on records (status);
 
 -- 삭제 후 30일이 지난 기록이 옮겨지는 곳
 create table if not exists trash (like records including defaults);
-alter table trash add primary key (id);
+do $$ begin
+  if not exists (select 1 from pg_constraint where conrelid = 'trash'::regclass and contype = 'p') then
+    alter table trash add primary key (id);
+  end if;
+end $$;
 
 create table if not exists profile (
   key text primary key,
