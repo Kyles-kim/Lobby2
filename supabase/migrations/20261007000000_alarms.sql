@@ -4,8 +4,23 @@
 -- 기록마다 알림 설정
 --  alarm    : 몇 분 전에 알릴지 ("0"=정각, "10"=10분 전, "60"=1시간 전, "1440"=하루 전). 빈칸이면 알림 없음
 --  alarm_at : 다음에 울릴 시각("2026-10-08 14:50", 한국 시간). 울리고 나면 빈칸이 된다
-alter table records add column if not exists alarm text not null default '';
-alter table records add column if not exists alarm_at text not null default '';
+-- 알림 칸을 처음 만들 때만, 이미 등록해 둔 앞으로의 일정(시각이 있는 일정·업무일정)에 10분 전 알림을 켜 둔다
+-- (다시 실행해도 꺼 둔 알림이 다시 켜지지 않게 한 번만)
+do $$ begin
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'records' and column_name = 'alarm') then
+    alter table records add column alarm text not null default '';
+    alter table records add column alarm_at text not null default '';
+    update records
+    set alarm = '10',
+        alarm_at = case   -- 10분 전이 이미 지났으면 일정 시각 정각에 울린다
+          when (target_date || ' ' || target_time)::timestamp - interval '10 minutes' > now() at time zone 'Asia/Seoul'
+            then to_char((target_date || ' ' || target_time)::timestamp - interval '10 minutes', 'YYYY-MM-DD HH24:MI')
+          else target_date || ' ' || target_time end
+    where type in ('일정', '업무일정') and status = '예정' and alarm = ''
+      and target_date ~ '^\d{4}-\d{2}-\d{2}$' and target_time ~ '^\d{2}:\d{2}$'
+      and (target_date || ' ' || target_time)::timestamp > now() at time zone 'Asia/Seoul';
+  end if;
+end $$;
 alter table trash add column if not exists alarm text not null default '';
 alter table trash add column if not exists alarm_at text not null default '';
 create index if not exists records_alarm_at on records (alarm_at) where alarm_at <> '';
@@ -27,14 +42,3 @@ create table if not exists app_keys (
 
 alter table push_subs enable row level security;
 alter table app_keys enable row level security;
-
--- 이미 등록해 둔 앞으로의 일정(시각이 있는 일정·업무일정)은 10분 전 알림을 켜 둔다
-update records
-set alarm = '10',
-    alarm_at = case   -- 10분 전이 이미 지났으면 일정 시각 정각에 울린다
-      when (target_date || ' ' || target_time)::timestamp - interval '10 minutes' > now() at time zone 'Asia/Seoul'
-        then to_char((target_date || ' ' || target_time)::timestamp - interval '10 minutes', 'YYYY-MM-DD HH24:MI')
-      else target_date || ' ' || target_time end
-where type in ('일정', '업무일정') and status = '예정' and alarm = ''
-  and target_date ~ '^\d{4}-\d{2}-\d{2}$' and target_time ~ '^\d{2}:\d{2}$'
-  and (target_date || ' ' || target_time)::timestamp > now() at time zone 'Asia/Seoul';

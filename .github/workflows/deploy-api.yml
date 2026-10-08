@@ -1,5 +1,6 @@
-# main에 서버 코드(supabase/functions)가 바뀌어 올라가면 Lobby 서버(Edge Function)를 자동으로 다시 배포한다.
-# 앱 화면만 새로 바뀌고 서버는 옛 버전으로 남아 "알 수 없는 요청" 오류가 나는 일을 막기 위함.
+# main에 서버 코드(supabase/functions)나 표 SQL(supabase/migrations)이 바뀌어 올라가면
+# 아직 실행하지 않은 표 SQL을 DB에 실행하고, Lobby 서버(Edge Function)를 다시 배포한다.
+# 앱 화면만 새로 바뀌고 서버·표는 옛 버전으로 남아 "알 수 없는 요청", "표 업데이트가 필요합니다" 오류가 나는 일을 막기 위함.
 # 필요한 저장소 비밀 값 (GitHub > Settings > Secrets and variables > Actions):
 #   SUPABASE_ACCESS_TOKEN  — supabase.com > Account > Access Tokens에서 만든 토큰
 #   SUPABASE_PROJECT_REF   — 서버 주소 https://<PROJECT_REF>.supabase.co 의 <PROJECT_REF>
@@ -8,7 +9,7 @@ name: Lobby 서버 배포
 on:
   push:
     branches: [main]
-    paths: ['supabase/functions/**', 'supabase/config.toml']
+    paths: ['supabase/functions/**', 'supabase/migrations/**', 'supabase/config.toml', '.github/scripts/**']
   workflow_dispatch:
 
 jobs:
@@ -43,6 +44,9 @@ jobs:
             echo "토큰과 프로젝트 ID 확인 완료"
           fi
           rm -f projects.json
+      - name: 표(DB) 업데이트
+        if: steps.check.outputs.skip != '1'
+        run: python3 .github/scripts/db_migrate.py
       - uses: supabase/setup-cli@v1
         if: steps.check.outputs.skip != '1'
         with:
