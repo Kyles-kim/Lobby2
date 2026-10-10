@@ -24,15 +24,14 @@
    (변수 이름 brass·bronze·metal은 예전 청동 테마에서 온 것으로, 지금은 파랑 포인트·밝은 버튼을 뜻한다) */
 :root{
   --bg:#EAF9FD; --bg2:#DBF3FA; --surface:#FFFFFF; --raised:#EAF4FF; --line:rgba(30,84,196,.2);
-  --ink:#0B1E4F; --muted:#4A5F85; --faint:#8FA1BF;
+  --ink:#0B1E4F; --muted:#4A5F85; --faint:#5F7396;
   --brass:#2F80ED; --brass-deep:#1E54C4; --brass-lite:#2468D8; --brass-soft:rgba(47,128,237,.12);
   --blue:#2F6FD0; --blue-soft:rgba(63,120,201,.12);
   --cyan:#0AA6C2; --cyan-soft:rgba(10,166,194,.12);
   --ok:#2E9E62; --danger:#D9483B; --danger-soft:rgba(217,72,59,.12);
-  --stage1:#FFFFFF; --stage2:#C4EEF9;
   --metal:linear-gradient(180deg,#E6F9FF 0%,#CDF1FB 45%,#B4E8F8 100%);
   --metal-btn:linear-gradient(180deg,#FFFFFF 0%,#EEF6FF 55%,#DDEBFF 100%);
-  --bronze-btn:linear-gradient(180deg,#5FB4FF 0%,#2F80ED 55%,#1E54C4 100%);
+  --bronze-btn:linear-gradient(180deg,#3B8DF2 0%,#2468D8 55%,#1A4FB8 100%);
   --bevel:inset 0 1px 0 rgba(255,255,255,.85),0 2px 6px rgba(20,50,120,.16);
   --sans:"Maplestory","IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
   --mono:"Maplestory","IBM Plex Sans KR",ui-monospace,Consolas,monospace;   /* 날짜·금액 자리. 예전에는 고정폭 글꼴이었다 */
@@ -48,6 +47,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
 a{color:inherit}
 :focus-visible{outline:2px solid var(--brass-lite);outline-offset:2px}
+::selection{background:rgba(47,128,237,.26);color:var(--ink)}
+input,textarea,select{caret-color:var(--brass);accent-color:var(--brass)}
 [hidden]{display:none!important}
 
 /* ── 레이아웃 ── */
@@ -62,17 +63,15 @@ a{color:inherit}
 .usage.warn b{color:#B36B00} .usage.over b{color:var(--danger)}
 .mark{display:flex;align-items:baseline;gap:10px}
 .mark b{font-size:40px;line-height:1.15}
-.logo{font-family:var(--sans);font-weight:700;letter-spacing:.01em;
-  background:linear-gradient(180deg,#4FC3F7 0%,#2F80ED 50%,#1E54C4 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
-  filter:drop-shadow(0 1px 0 rgba(255,255,255,.9)) drop-shadow(0 2px 3px rgba(30,84,196,.25))}
+.logo{font-family:var(--sans);font-weight:700;letter-spacing:.01em;color:var(--brass-deep)}
 .mark span{font-family:var(--mono);font-size:13px;color:var(--muted);letter-spacing:.06em;white-space:nowrap}
 .top .sp{flex:1 1 0;min-width:0}
 .top>*{flex-shrink:0}
 .top>.brand{flex-shrink:1}
 .wake-btn .lbl{white-space:nowrap}
-.icon-btn{width:44px;height:40px;border-radius:12px;border:1px solid rgba(30,84,196,.3);background:var(--metal-btn);box-shadow:var(--bevel);display:grid;place-items:center;flex:0 0 auto}
+.icon-btn{width:44px;height:44px;border-radius:12px;border:1px solid rgba(30,84,196,.3);background:var(--metal-btn);box-shadow:var(--bevel);display:grid;place-items:center;flex:0 0 auto}
 .icon-btn svg{width:20px;height:20px;stroke:var(--brass-deep);fill:none;stroke-width:1.8}
-.wake-btn{height:40px;border-radius:20px;border:1px solid rgba(30,84,196,.3);background:var(--metal-btn);box-shadow:var(--bevel);display:flex;align-items:center;gap:6px;padding:0 16px 0 12px;font-size:14px;font-weight:500;color:#16306B}
+.wake-btn{height:44px;border-radius:22px;border:1px solid rgba(30,84,196,.3);background:var(--metal-btn);box-shadow:var(--bevel);display:flex;align-items:center;gap:6px;padding:0 16px 0 12px;font-size:14px;font-weight:500;color:#16306B}
 .wake-btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8}
 .wake-btn[aria-pressed="true"]{color:#087F96;border-color:rgba(10,166,194,.8);box-shadow:var(--bevel),0 0 14px rgba(10,166,194,.55)}
 .wake-btn[aria-pressed="true"] .dot{width:7px;height:7px;border-radius:50%;background:var(--cyan);box-shadow:0 0 6px var(--cyan);animation:blink 1.6s infinite}
@@ -107,23 +106,32 @@ main{overflow-y:auto;overflow-x:hidden;touch-action:pan-y;overscroll-behavior:co
 
 /* ── 무대: 남색 화면 속 꼬마 로봇 그림(icons/lobby-stage.jpg, 1024×1270) 위에 파동·이퀄라이저를 덧그린다.
    그림에 궤도 고리·받침 물결이 이미 들어 있어서 따로 그리지 않는다 ── */
-.stage{position:relative;display:grid;justify-items:center;gap:4px;margin:-12px -16px 0;padding:14px 16px 12px;overflow:hidden;
+.stage{position:relative;display:grid;justify-items:center;gap:4px;margin:-12px -16px 0;padding:14px 16px 12px;overflow:hidden;border-radius:0 0 26px 26px;box-shadow:0 10px 22px rgba(20,50,120,.2);
   background:radial-gradient(ellipse 95% 70% at 50% 56%,#02469D 0%,#022C78 55%,#021A52 100%)}
 .stage>*{position:relative;z-index:1}
 .greet{font-size:25px;font-weight:700;line-height:1.4;color:#E4FCFF;text-align:center;margin-top:10px;z-index:2;text-shadow:0 0 16px rgba(125,243,255,.75),0 2px 6px rgba(1,20,70,.8)}
-.orb-wrap{position:relative;width:calc(100% + 32px);margin:-38px -16px 0;aspect-ratio:1024/1270;background:url(icons/lobby-stage.jpg) center/100% 100% no-repeat;
-  -webkit-mask:linear-gradient(180deg,transparent 0,#000 10%,#000 91%,transparent 100%);mask:linear-gradient(180deg,transparent 0,#000 10%,#000 91%,transparent 100%)}
+.orb-wrap{position:relative;width:calc(100% + 32px);margin:-38px -16px 0;aspect-ratio:1024/1460;
+  -webkit-mask:linear-gradient(180deg,transparent 0,#000 10%,#000 92%,transparent 100%);mask:linear-gradient(180deg,transparent 0,#000 10%,#000 92%,transparent 100%)}
+/* 그림을 두 겹으로 깐다: 위 겹은 로봇까지만 보이고, 아래 겹은 같은 그림을 190(그림 좌표)만큼 내려 받침 물결만 보인다.
+   → 로봇과 받침 물결 사이가 벌어지고, 그 틈에 이퀄라이저가 들어간다. 두 겹은 그림 71.6%~75.6% 구간에서 서로 녹아든다 */
+.orb-wrap::before,.orb-wrap::after{content:"";position:absolute;left:0;width:100%;height:86.986%;z-index:-1;background:url(icons/lobby-stage.jpg) center/100% 100% no-repeat}
+.orb-wrap::before{top:0;-webkit-mask:linear-gradient(180deg,#000 71.6%,transparent 75.6%);mask:linear-gradient(180deg,#000 71.6%,transparent 75.6%)}
+.orb-wrap::after{top:13.014%;-webkit-mask:linear-gradient(180deg,transparent 71.6%,#000 75.6%);mask:linear-gradient(180deg,transparent 71.6%,#000 75.6%)}
 .wave{position:absolute;left:0;top:0;width:100%;height:100%;z-index:0;pointer-events:none}
 /* 마이크 버튼: 그림 속 로봇 자리를 덮는 투명한 누름 영역 */
-.mic{position:absolute;z-index:1;left:20%;top:10%;width:60%;height:60%;border:0;border-radius:50%;background:none}
+.mic{position:absolute;z-index:1;left:20%;top:10%;width:60%;height:50%;border:0;border-radius:50%;background:none}
 /* 덧그림(.fx): 그림과 같은 좌표(원본 그림의 x 0~1024, y 150~1420)로 파동 고리와 눈·입 번쩍임을 그린다 */
 .fx{position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;overflow:visible}
-/* 파동: 듣는 동안(.on) 로봇 둘레와 받침에서 빛 고리가 바깥으로 퍼져 나간다 → 마이크가 켜져 있다는 표시 */
-.fx .rip{fill:none;stroke:#8DF6FF;stroke-width:5;opacity:0;transform-box:fill-box;transform-origin:50% 50%;filter:drop-shadow(0 0 6px #4FD8FF)}
-.mic.on~.fx .rip{animation:rip 1.8s ease-out infinite}
-.mic.on~.fx .rip.d1{animation-delay:.6s}
-.mic.on~.fx .rip.d2{animation-delay:1.2s}
-@keyframes rip{0%{transform:scale(.55);opacity:0}15%{opacity:.95}100%{transform:scale(1.28);opacity:0}}
+/* 궤도 번쩍임(.glow): 말하는 동안 그림 속 궤도 고리가 눈·입과 같은 박자로 번쩍인다.
+   같은 그림의 고리 높이 띠(그림 y 520~1010)를 한 겹 더 얹어 밝게 겹치는(screen) 방식이라 고리 위치가 정확히 맞는다. 로봇 몸은 타원 마스크로 빼 둔다 */
+.glow{position:absolute;left:0;top:25.34%;width:100%;height:33.56%;z-index:0;pointer-events:none;opacity:0;mix-blend-mode:screen;filter:contrast(1.6) brightness(2);
+  background:url(icons/lobby-stage.jpg) 0 47.44%/100% 259.18% no-repeat;
+  -webkit-mask-image:radial-gradient(ellipse 29.3% 65.3% at 51.3% 36.7%,transparent 88%,#000 100%),linear-gradient(180deg,transparent 0,#000 16%,#000 84%,transparent 100%);-webkit-mask-composite:source-in;
+  mask-image:radial-gradient(ellipse 29.3% 65.3% at 51.3% 36.7%,transparent 88%,#000 100%),linear-gradient(180deg,transparent 0,#000 16%,#000 84%,transparent 100%);mask-composite:intersect}
+body.speaking .glow{animation:glowA .5s ease-out infinite}
+body.speaking.beat .glow{animation-name:glowB}
+@keyframes glowA{0%{opacity:1}38%{opacity:.1}58%{opacity:.8}82%{opacity:.15}100%{opacity:.35}}
+@keyframes glowB{0%{opacity:1}38%{opacity:.1}58%{opacity:.8}82%{opacity:.15}100%{opacity:.35}}
 /* 말하는 동안 눈·입이 번쩍인다: 덧그린 선이 하얗게 빛났다가(밝게) 남색으로 덮었다가(어둡게) 한다.
    낱말이 바뀔 때마다(body.beat가 뒤집힐 때마다) 같은 번쩍임을 처음부터 다시 시작해 말소리와 박자를 맞춘다 */
 .fx .ln{fill:none;stroke:#FFFFFF;stroke-linecap:round;opacity:0}
@@ -132,7 +140,7 @@ body.speaking.beat .fx .ln{animation-name:flashB}
 @keyframes flashA{0%{stroke:#FFFFFF;opacity:1;filter:drop-shadow(0 0 5px #7DF3FF) drop-shadow(0 0 10px #7DF3FF)}38%{stroke:#061040;opacity:.72;filter:none}58%{stroke:#D9FDFF;opacity:.9;filter:drop-shadow(0 0 5px #7DF3FF)}82%{stroke:#061040;opacity:.6;filter:none}100%{stroke:#061040;opacity:.15}}
 @keyframes flashB{0%{stroke:#FFFFFF;opacity:1;filter:drop-shadow(0 0 5px #7DF3FF) drop-shadow(0 0 10px #7DF3FF)}38%{stroke:#061040;opacity:.72;filter:none}58%{stroke:#D9FDFF;opacity:.9;filter:drop-shadow(0 0 5px #7DF3FF)}82%{stroke:#061040;opacity:.6;filter:none}100%{stroke:#061040;opacity:.15}}
 /* 음성 출력: Lobby가 말하는 동안 얼굴 좌우로 스피커 소리처럼 부채꼴 호가 차례로 퍼져 나간다 */
-.sound{position:absolute;top:40%;left:80%;width:0;height:0;z-index:2;pointer-events:none;opacity:0;transition:opacity .2s}
+.sound{position:absolute;top:35%;left:80%;width:0;height:0;z-index:2;pointer-events:none;opacity:0;transition:opacity .2s}
 .sound.l{left:22%;transform:scaleX(-1)}
 .sound i{position:absolute;left:0;top:0;width:var(--d);height:var(--d);margin:calc(var(--d) / -2) 0 0 calc(var(--d) / -2);border-radius:50%;
   border:3px solid transparent;border-right-color:var(--c);opacity:0;filter:drop-shadow(0 0 5px var(--c))}
@@ -144,13 +152,13 @@ body.speaking .sound{opacity:1}
 body.speaking .sound i{animation-name:sound;animation-duration:1.15s;animation-timing-function:ease-out;animation-iteration-count:infinite}
 @keyframes sound{0%{opacity:0;transform:scale(.82)}25%{opacity:1}70%{opacity:.55}100%{opacity:0;transform:scale(1.12)}}
 @media (prefers-reduced-motion:reduce){body.speaking .sound i{animation:none;opacity:.8}}
-@media (prefers-reduced-motion:reduce){.mic.on~.fx .rip,body.speaking .fx .ln{animation:none}.mic.on~.fx .rip{opacity:.7}}
+@media (prefers-reduced-motion:reduce){body.speaking .glow,body.speaking .fx .ln{animation:none}body.speaking .glow{opacity:.6}}
 .mic-hint{font-size:24px;font-weight:700;line-height:1.35;min-height:34px;margin-top:-34px;z-index:2;text-align:center;color:#E4FCFF;text-shadow:0 0 16px rgba(125,243,255,.75),0 2px 6px rgba(1,20,70,.8)}
-.mic-hint b,.greet b{font-weight:700}
-.live{min-height:26px;text-align:center;font-size:16px;color:#EAFBFF;padding:0 8px}
+.mic-hint b,.greet b{font-weight:700}.live{min-height:26px;text-align:center;font-size:16px;color:#EAFBFF;padding:0 8px}
 .live.dim{color:transparent}
 
 .typebox{display:flex;gap:8px;align-items:flex-end;background:#FFFFFF;border:1px solid var(--line);border-radius:14px;padding:8px 8px 8px 14px;box-shadow:inset 0 2px 6px rgba(20,50,120,.14)}
+.typebox:focus-within{border-color:var(--brass);box-shadow:0 0 0 3px var(--brass-soft)}
 .typebox textarea{flex:1;background:none;border:0;resize:none;outline:none;min-height:24px;max-height:120px;padding:4px 0;line-height:1.5}
 .typebox textarea::placeholder{color:var(--faint)}
 .send{height:36px;padding:0 14px;border-radius:10px;border:1px solid rgba(30,84,196,.5);background:var(--bronze-btn);box-shadow:var(--bevel);color:#FFFFFF;font-weight:700;font-size:14px}
@@ -169,6 +177,7 @@ body.speaking .sound i{animation-name:sound;animation-duration:1.15s;animation-t
 .chip.d{color:var(--cyan);border-color:rgba(10,166,194,.4);background:var(--cyan-soft)}
 .chip.new{color:#FFFFFF;background:var(--brass);border-color:var(--brass);font-weight:500}
 .chip.st-예정{color:var(--blue)} .chip.st-완료{color:var(--ok)} .chip.st-취소{color:var(--faint);text-decoration:line-through}
+.date,.amt,.usage b,.mark span,.doc .meta,.task .next{font-variant-numeric:tabular-nums}
 .date{font-family:var(--mono);font-size:12px;color:var(--muted)}
 .ttl{font-weight:500;flex:1 1 auto;min-width:0}
 .amt{font-family:var(--mono);font-size:13px;color:var(--ink);margin-left:auto;font-variant-numeric:tabular-nums}
@@ -181,7 +190,7 @@ body.speaking .sound i{animation-name:sound;animation-duration:1.15s;animation-t
 .form{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .form .wide{grid-column:1/-1}
 .fld{display:grid;gap:3px}
-.fld>span{font-size:11.5px;color:var(--muted)}
+.fld>span{font-size:12.5px;color:var(--muted)}
 .fld input,.fld select,.fld textarea{width:100%;background:#FFFFFF;border:1px solid var(--line);border-radius:8px;padding:7px 10px;outline:none;font-size:14px}
 .fld select option{background:#FFFFFF}
 .fld textarea{resize:vertical;min-height:60px}
@@ -195,7 +204,7 @@ body.speaking .sound i{animation-name:sound;animation-duration:1.15s;animation-t
 
 .btns{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;align-items:center}
 .btn{height:40px;padding:0 16px;border-radius:10px;border:1px solid rgba(30,84,196,.3);background:var(--metal-btn);box-shadow:var(--bevel);color:#16306B;font-size:14px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;gap:6px}
-.btn.sm{height:32px;padding:0 12px;font-size:12.5px;border-radius:8px}
+.btn.sm{height:36px;padding:0 12px;font-size:12.5px;border-radius:8px}
 .btn.pri{background:var(--bronze-btn);border-color:rgba(30,84,196,.55);color:#FFFFFF;font-weight:700}
 .btn.del{color:#FFFFFF;border-color:rgba(190,50,40,.6);background:linear-gradient(180deg,#F0776B,#D9483B)}
 .btn.ghost{background:none;box-shadow:none;border-color:var(--line);color:var(--muted);text-shadow:none}
@@ -294,7 +303,7 @@ body.speaking .sound i{animation-name:sound;animation-duration:1.15s;animation-t
 /* ── 수정&삭제 ── */
 .filters{display:grid;gap:8px;position:sticky;top:-12px;background:#E6F6FB;margin:0 -16px;padding:10px 16px;z-index:2;box-shadow:0 6px 10px rgba(20,50,120,.10)}
 .seg{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;touch-action:pan-x;overscroll-behavior:contain}
-.seg button{flex:0 0 auto;height:32px;padding:0 13px;border-radius:16px;border:1px solid var(--line);background:rgba(47,128,237,.06);color:var(--muted);font-size:13px}
+.seg button{flex:0 0 auto;height:36px;padding:0 13px;border-radius:16px;border:1px solid var(--line);background:rgba(47,128,237,.06);color:var(--muted);font-size:13px}
 .seg button[aria-pressed="true"]{background:var(--bronze-btn);border-color:var(--brass);color:#FFFFFF;font-weight:700}
 .frow{display:grid;grid-template-columns:auto 1fr;gap:8px}
 .frow select,.frow input,.range input{background:#FFFFFF;border:1px solid var(--line);border-radius:10px;height:38px;padding:0 10px;outline:none;min-width:0}
@@ -400,9 +409,8 @@ body.speaking .sound i{animation-name:sound;animation-duration:1.15s;animation-t
         <div class="orb-wrap">
           <canvas class="wave" aria-hidden="true"></canvas>
           <button class="mic face" id="micTalk" aria-label="말하기 시작 / 중단"></button>
-          <svg class="fx" viewBox="0 150 1024 1270" preserveAspectRatio="none" aria-hidden="true">
-            <circle class="rip" cx="525" cy="690" r="330"/><circle class="rip d1" cx="525" cy="690" r="330"/><circle class="rip d2" cx="525" cy="690" r="330"/>
-            <ellipse class="rip" cx="530" cy="1195" rx="330" ry="62"/><ellipse class="rip d1" cx="530" cy="1195" rx="330" ry="62"/>
+          <span class="glow" aria-hidden="true"></span>
+          <svg class="fx" viewBox="0 150 1024 1460" preserveAspectRatio="none" aria-hidden="true">
             <path class="ln" d="M362 662 Q398 580 442 658" stroke-width="24"/><path class="ln" d="M540 655 Q586 568 632 656" stroke-width="24"/>
             <path class="ln" d="M463 674 Q489 721 520 672" stroke-width="24"/>
           </svg>
@@ -429,9 +437,8 @@ body.speaking .sound i{animation-name:sound;animation-duration:1.15s;animation-t
         <div class="orb-wrap">
           <canvas class="wave" aria-hidden="true"></canvas>
           <button class="mic face" id="micLog" aria-label="기록 말하기 시작 / 중단"></button>
-          <svg class="fx" viewBox="0 150 1024 1270" preserveAspectRatio="none" aria-hidden="true">
-            <circle class="rip" cx="525" cy="690" r="330"/><circle class="rip d1" cx="525" cy="690" r="330"/><circle class="rip d2" cx="525" cy="690" r="330"/>
-            <ellipse class="rip" cx="530" cy="1195" rx="330" ry="62"/><ellipse class="rip d1" cx="530" cy="1195" rx="330" ry="62"/>
+          <span class="glow" aria-hidden="true"></span>
+          <svg class="fx" viewBox="0 150 1024 1460" preserveAspectRatio="none" aria-hidden="true">
             <path class="ln" d="M362 662 Q398 580 442 658" stroke-width="24"/><path class="ln" d="M540 655 Q586 568 632 656" stroke-width="24"/>
             <path class="ln" d="M463 674 Q489 721 520 672" stroke-width="24"/>
           </svg>
@@ -593,7 +600,7 @@ const store = {
   set(k, v) { try { localStorage.setItem('lobby2.' + k, JSON.stringify(v)); } catch {} },
 };
 const DEFAULT_URL = 'https://nawopzisxmgaqtchpcrb.supabase.co/functions/v1/api';
-const HINT_IDLE = '';   // 인사말("비서 Lobby 입니다.")은 무대 위쪽에 늘 떠 있으므로, 쉬는 동안 얼굴 아래 안내 칸은 비워 둔다
+const HINT_IDLE = '';   // 인사말("비서 Lobby 입니다.")은 무대 위쪽에 늘 떠 있으므로, 쉬는 동안 로봇 아래 안내 칸은 비워 둔다
 const DEFAULT_WAKE = '안녕 로비, 헤이 로비, 로비야, 로비, lobby';
 const WEEK = ['월','화','수','목','금','토','일'];
 const S = {
@@ -1987,17 +1994,20 @@ $('#docFile').addEventListener('change', e => openUploadPlan(e.target.files));
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
     const goal = live(it) ? 1 : 0.5;
     it.level = Math.abs(goal - it.level) < 0.01 ? goal : it.level + (goal - it.level) * 0.12;
-    const cx = w / 2, cy = h * 0.725, GAP = 6, N = Math.min(27, Math.floor((cx - 10) / GAP));
-    ctx.lineCap = 'round'; ctx.lineWidth = 2.6; ctx.shadowColor = 'rgba(79,216,255,.9)'; ctx.shadowBlur = 7;
+    const cx = w / 2, cy = h * 0.6815, GAP = 6, N = Math.min(27, Math.floor((cx - 10) / GAP));
+    // 듣는 동안에는 이퀄라이저 전체가 번쩍인다(어두워졌다 환하게 빛났다를 되풀이) → 마이크가 켜져 있다는 표시
+    const flash = it.mic.classList.contains('on') ? Math.pow(0.5 + 0.5 * Math.sin(t * 11), 2) : 0;
+    ctx.globalAlpha = it.mic.classList.contains('on') ? 0.35 + 0.65 * flash : 1;
+    ctx.lineCap = 'round'; ctx.lineWidth = 2.6 + flash * 0.8; ctx.shadowColor = flash > 0.5 ? 'rgba(255,255,255,.95)' : 'rgba(79,216,255,.9)'; ctx.shadowBlur = 7 + flash * 14;
     for (let i = -N; i <= N; i++) {
       const u = Math.abs(i) / N;                                              // 가운데 0 → 가장자리 1
       const env = Math.pow(1 - u, 1.7);
       const n = 0.3 + 0.7 * Math.abs(Math.sin(i * 1.9 + t * 7.3) * Math.cos(i * 0.63 - t * 4.1));
-      const hh = env * n * it.level * 26;                                     // 막대 반 높이. 1 아래로 내려가면 점으로 보인다
+      const hh = env * n * it.level * 52;                                     // 막대 반 높이. 1 아래로 내려가면 점으로 보인다
       ctx.strokeStyle = `rgba(${u < 0.3 ? '228,252,255' : '125,243,255'},${(1 - 0.7 * u).toFixed(2)})`;
       ctx.beginPath(); ctx.moveTo(cx + i * GAP, cy - hh); ctx.lineTo(cx + i * GAP, cy + hh); ctx.stroke();
     }
-    ctx.shadowBlur = 0;
+    ctx.shadowBlur = 0; ctx.globalAlpha = 1;
   }
   let last = 0;
   function tick(ms) {
