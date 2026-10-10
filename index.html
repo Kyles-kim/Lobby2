@@ -139,19 +139,6 @@ body.speaking .fx .ln{animation:flashA .5s ease-out infinite}
 body.speaking.beat .fx .ln{animation-name:flashB}
 @keyframes flashA{0%{stroke:#FFFFFF;opacity:1;filter:drop-shadow(0 0 5px #7DF3FF) drop-shadow(0 0 10px #7DF3FF)}38%{stroke:#061040;opacity:.72;filter:none}58%{stroke:#D9FDFF;opacity:.9;filter:drop-shadow(0 0 5px #7DF3FF)}82%{stroke:#061040;opacity:.6;filter:none}100%{stroke:#061040;opacity:.15}}
 @keyframes flashB{0%{stroke:#FFFFFF;opacity:1;filter:drop-shadow(0 0 5px #7DF3FF) drop-shadow(0 0 10px #7DF3FF)}38%{stroke:#061040;opacity:.72;filter:none}58%{stroke:#D9FDFF;opacity:.9;filter:drop-shadow(0 0 5px #7DF3FF)}82%{stroke:#061040;opacity:.6;filter:none}100%{stroke:#061040;opacity:.15}}
-/* 음성 출력: Lobby가 말하는 동안 얼굴 좌우로 스피커 소리처럼 부채꼴 호가 차례로 퍼져 나간다 */
-.sound{position:absolute;top:35%;left:80%;width:0;height:0;z-index:2;pointer-events:none;opacity:0;transition:opacity .2s}
-.sound.l{left:22%;transform:scaleX(-1)}
-.sound i{position:absolute;left:0;top:0;width:var(--d);height:var(--d);margin:calc(var(--d) / -2) 0 0 calc(var(--d) / -2);border-radius:50%;
-  border:3px solid transparent;border-right-color:var(--c);opacity:0;filter:drop-shadow(0 0 5px var(--c))}
-.sound i:nth-child(1){--d:40px;--c:#E4FCFF}
-.sound i:nth-child(2){--d:70px;--c:#8DF6FF;animation-delay:.16s}
-.sound i:nth-child(3){--d:100px;--c:#8DF6FF;animation-delay:.32s}
-.sound i:nth-child(4){--d:130px;--c:#4FB8FF;animation-delay:.48s}
-body.speaking .sound{opacity:1}
-body.speaking .sound i{animation-name:sound;animation-duration:1.15s;animation-timing-function:ease-out;animation-iteration-count:infinite}
-@keyframes sound{0%{opacity:0;transform:scale(.82)}25%{opacity:1}70%{opacity:.55}100%{opacity:0;transform:scale(1.12)}}
-@media (prefers-reduced-motion:reduce){body.speaking .sound i{animation:none;opacity:.8}}
 @media (prefers-reduced-motion:reduce){body.speaking .glow,body.speaking .fx .ln{animation:none}body.speaking .glow{opacity:.6}}
 .mic-hint{font-size:24px;font-weight:700;line-height:1.35;min-height:34px;margin-top:-34px;z-index:2;text-align:center;color:#E4FCFF;text-shadow:0 0 16px rgba(125,243,255,.75),0 2px 6px rgba(1,20,70,.8)}
 .mic-hint b,.greet b{font-weight:700}.live{min-height:26px;text-align:center;font-size:16px;color:#EAFBFF;padding:0 8px}
@@ -415,8 +402,6 @@ body.speaking .sound i{animation-name:sound;animation-duration:1.15s;animation-t
             <path class="ln" d="M463 674 Q489 721 520 672" stroke-width="24"/>
           </svg>
 
-          <span class="sound l" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-          <span class="sound r" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
         </div>
         <div class="mic-hint" id="hintTalk"></div>
         <div class="live dim" id="liveTalk"></div>
