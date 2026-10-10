@@ -1,7 +1,7 @@
 // Lobby service worker — 화면 파일만 캐시하고, 서버(Supabase) 요청은 항상 네트워크로 보냅니다.
 // 서버가 보내는 휴대폰 알림(일정 알림)도 여기서 받아 알림 센터에 띄웁니다.
-const CACHE = 'lobby2-v15';
-const ASSETS = ['./', './index.html', './manifest.json', './icons/icon-192.png', './icons/icon-512.png'];
+const CACHE = 'lobby2-v18';
+const ASSETS = ['./', './index.html', './manifest.json', './icons/icon-192.png', './icons/icon-512.png', './icons/lobby-stage.jpg'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
