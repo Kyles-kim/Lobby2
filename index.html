@@ -135,6 +135,16 @@ body.speaking.beat .glow{animation-name:glowB}
 /* 말하는 동안 눈·입이 번쩍인다: 덧그린 선이 하얗게 빛났다가(밝게) 남색으로 덮었다가(어둡게) 한다.
    낱말이 바뀔 때마다(body.beat가 뒤집힐 때마다) 같은 번쩍임을 처음부터 다시 시작해 말소리와 박자를 맞춘다 */
 .fx .ln{fill:none;stroke:#FFFFFF;stroke-linecap:round;opacity:0}
+/* 생각 중(body.thinking): 받침 물결 한가운데에서 빛 고리가 바깥으로 퍼져 나가고(.rip), 밝은 빛 한 줄기가 물결 둘레를 돈다(.spin) */
+.fx .rip{fill:none;stroke:#9FF7FF;stroke-width:5;opacity:0;transform-box:fill-box;transform-origin:50% 50%;filter:drop-shadow(0 0 6px #4FD8FF)}
+body.thinking .fx .rip{animation:rip 2.1s ease-out infinite}
+body.thinking .fx .rip.d1{animation-delay:.7s}
+body.thinking .fx .rip.d2{animation-delay:1.4s}
+@keyframes rip{0%{transform:scale(.3);opacity:0}18%{opacity:.95}100%{transform:scale(1.16);opacity:0}}
+.fx .spin{fill:none;stroke:#FFFFFF;stroke-width:9;stroke-linecap:round;stroke-dasharray:150 850;opacity:0;transition:opacity .25s;filter:drop-shadow(0 0 8px #7DF3FF)}
+body.thinking .fx .spin{opacity:1;animation:spinRing 1.3s linear infinite}
+@keyframes spinRing{to{stroke-dashoffset:-1000}}
+@media (prefers-reduced-motion:reduce){body.thinking .fx .rip,body.thinking .fx .spin{animation:none}body.thinking .fx .rip{opacity:.7}}
 body.speaking .fx .ln{animation:flashA .5s ease-out infinite}
 body.speaking.beat .fx .ln{animation-name:flashB}
 @keyframes flashA{0%{stroke:#FFFFFF;opacity:1;filter:drop-shadow(0 0 5px #7DF3FF) drop-shadow(0 0 10px #7DF3FF)}38%{stroke:#061040;opacity:.72;filter:none}58%{stroke:#D9FDFF;opacity:.9;filter:drop-shadow(0 0 5px #7DF3FF)}82%{stroke:#061040;opacity:.6;filter:none}100%{stroke:#061040;opacity:.15}}
@@ -400,6 +410,8 @@ body.speaking.beat .fx .ln{animation-name:flashB}
           <svg class="fx" viewBox="0 150 1024 1460" preserveAspectRatio="none" aria-hidden="true">
             <path class="ln" d="M362 662 Q398 580 442 658" stroke-width="24"/><path class="ln" d="M540 655 Q586 568 632 656" stroke-width="24"/>
             <path class="ln" d="M463 674 Q489 721 520 672" stroke-width="24"/>
+            <ellipse class="rip" cx="530" cy="1382" rx="330" ry="62"/><ellipse class="rip d1" cx="530" cy="1382" rx="330" ry="62"/><ellipse class="rip d2" cx="530" cy="1382" rx="330" ry="62"/>
+            <ellipse class="spin" cx="530" cy="1382" rx="300" ry="56" pathLength="1000"/>
           </svg>
 
         </div>
@@ -426,6 +438,8 @@ body.speaking.beat .fx .ln{animation-name:flashB}
           <svg class="fx" viewBox="0 150 1024 1460" preserveAspectRatio="none" aria-hidden="true">
             <path class="ln" d="M362 662 Q398 580 442 658" stroke-width="24"/><path class="ln" d="M540 655 Q586 568 632 656" stroke-width="24"/>
             <path class="ln" d="M463 674 Q489 721 520 672" stroke-width="24"/>
+            <ellipse class="rip" cx="530" cy="1382" rx="330" ry="62"/><ellipse class="rip d1" cx="530" cy="1382" rx="330" ry="62"/><ellipse class="rip d2" cx="530" cy="1382" rx="330" ry="62"/>
+            <ellipse class="spin" cx="530" cy="1382" rx="300" ry="56" pathLength="1000"/>
           </svg>
 
         </div>
@@ -524,6 +538,9 @@ body.speaking.beat .fx .ln{animation-name:flashB}
     <label class="fld"><span>호출어 (쉼표로 구분)</span><input id="sWake" autocomplete="off"></label>
     <label class="fld"><span>읽어 주는 속도</span>
       <select id="sRate"><option value="0.9">조금 느리게</option><option value="1" selected>보통</option><option value="1.15">조금 빠르게</option><option value="1.3">빠르게</option></select></label>
+    <label class="fld"><span>목소리 (OpenAI 목소리는 인터넷이 될 때만, 안 되면 기기 기본 음성으로 읽습니다)</span>
+      <select id="sVoice"><option value="coral">OpenAI · coral</option><option value="nova">OpenAI · nova</option><option value="shimmer">OpenAI · shimmer</option><option value="sage">OpenAI · sage</option><option value="alloy">OpenAI · alloy</option><option value="ash">OpenAI · ash</option><option value="ballad">OpenAI · ballad</option><option value="echo">OpenAI · echo</option><option value="fable">OpenAI · fable</option><option value="onyx">OpenAI · onyx</option><option value="verse">OpenAI · verse</option><option value="marin">OpenAI · marin</option><option value="cedar">OpenAI · cedar</option><option value="device">기기 기본 음성</option></select></label>
+    <div class="btns" style="justify-content:flex-start"><button class="btn sm" id="btnVoiceTest" type="button">목소리 미리 듣기</button></div>
     <label class="check"><input type="checkbox" id="sAuto" checked>말이 끝나면 자동으로 정리·질문</label>
     <label class="check"><input type="checkbox" id="sSpeak" checked>답변을 음성으로 읽기</label>
     <label class="check"><input type="checkbox" id="sFollow" checked>호출 후 대답이 끝나면 이어서 듣기</label>
@@ -590,7 +607,7 @@ const DEFAULT_WAKE = '안녕 로비, 헤이 로비, 로비야, 로비, lobby';
 const WEEK = ['월','화','수','목','금','토','일'];
 const S = {
   url: store.get('url', DEFAULT_URL), pin: store.get('pin', ''),
-  rate: store.get('rate', 1), auto: store.get('auto', true), speak: store.get('speak', true),
+  rate: store.get('rate', 1), voice: store.get('voice', 'coral'), auto: store.get('auto', true), speak: store.get('speak', true),
   follow: store.get('follow', true), wakeWords: store.get('wake', DEFAULT_WAKE),
   alarmOn: store.get('alarm', true), alarmVoice: store.get('alarmVoice', true), lead: store.get('lead', 10), tone: store.get('tone', 'chime'),
   types: ['일상','지출','일정','업무일정','정보','특이점','아이디어','할일'],
@@ -715,10 +732,66 @@ function dictate({ onText, maxMs = 180000 } = {}) {
 
 let voiceKo = null;
 function pickVoice() { if ('speechSynthesis' in window) voiceKo = speechSynthesis.getVoices().find(v => v.lang && v.lang.startsWith('ko')) || null; }
-function speakAsync(text, force = false) {
+/* 말하기: 인터넷이 되면 서버를 거쳐 OpenAI 음성(사람 같은 목소리)으로 읽고,
+   인터넷이 안 되거나 OpenAI 음성이 실패하면 휴대폰 기본 음성으로 읽는다. 설정에서 '기기 기본 음성'을 고르면 늘 기본 음성을 쓴다 */
+let speakSeq = 0, ttsHalt = null, cloudOff = false;
+const ttsAudio = new Audio(), ttsCache = new Map();
+/** 지금 나오는 말(OpenAI·기본 음성 모두)을 끊고, 준비 중이던 말도 취소한다 */
+function haltSpeech() { speakSeq++; if (ttsHalt) ttsHalt(); if ('speechSynthesis' in window) speechSynthesis.cancel(); }
+/** 서버에서 OpenAI 음성(mp3)을 받아 재생용 주소로 돌려준다. 같은 말은 다시 받지 않는다 */
+async function cloudAudio(text, voice) {
+  const key = voice + '|' + text;
+  if (ttsCache.has(key)) return ttsCache.get(key);
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 7000);   // 오래 걸리면 기다리지 않고 기본 음성으로 넘어간다
+  try {
+    const j = await (await fetch(S.url, { method: 'POST', body: JSON.stringify({ action: 'tts', pin: S.pin, text, voice }), signal: ctl.signal })).json();
+    if (!j.ok || !j.audio) {
+      // 서버에 키가 없거나 서버가 옛 버전이면 다시 물어봐도 같으므로, 앱을 다시 열 때까지 기본 음성만 쓴다
+      if (/등록되어 있지 않습니다|알 수 없는 요청/.test(j.error || '')) cloudOff = true;
+      throw new Error(j.error || '음성을 받지 못했습니다.');
+    }
+    const url = URL.createObjectURL(new Blob([Uint8Array.from(atob(j.audio), c => c.charCodeAt(0))], { type: j.mime || 'audio/mpeg' }));
+    if (ttsCache.size >= 40) { const old = ttsCache.keys().next().value; URL.revokeObjectURL(ttsCache.get(old)); ttsCache.delete(old); }
+    ttsCache.set(key, url);
+    return url;
+  } finally { clearTimeout(timer); }
+}
+/** 받은 음성을 재생한다. 끝까지(또는 끊길 때까지) 재생했으면 true, 재생을 시작하지 못했으면 false */
+function playCloud(url, seq) {
   return new Promise(resolve => {
-    if ((!S.speak && !force) || !('speechSynthesis' in window) || !text) { resolve(); return; }
-    speechSynthesis.cancel();
+    const a = ttsAudio, mark = {};
+    let done = false, started = false;
+    const fin = ok => {
+      if (done) return; done = true; a.onended = a.onerror = null; if (ttsHalt === halt) ttsHalt = null;
+      if (speakingNow === mark) setSpeaking(null);
+      setTimeout(() => resolve(ok), ok ? 250 : 0);
+    };
+    const halt = () => { a.pause(); fin(true); };
+    ttsHalt = halt;
+    a.onended = () => fin(true); a.onerror = () => fin(started);
+    a.src = url;
+    a.defaultPlaybackRate = a.playbackRate = Number(S.rate) || 1;            // 읽어 주는 속도 설정은 재생 속도로 맞춘다
+    a.play().then(() => { started = true; if (seq !== speakSeq) return halt(); setSpeaking(mark); }).catch(() => fin(false));
+  });
+}
+async function speakAsync(text, force = false) {
+  if ((!S.speak && !force) || !text) return;
+  haltSpeech();
+  const seq = speakSeq;
+  if (S.voice !== 'device' && !cloudOff && navigator.onLine && !isDemo() && S.url) {
+    thinking(true);                                // 음성을 받아 오는 동안은 아직 '생각 중'
+    let url = null;
+    try { url = await cloudAudio(text, S.voice); } catch {}
+    thinking(false);
+    if (seq !== speakSeq) return;                  // 그 사이 다른 말이 시작됐거나 멈췄다
+    if (url && await playCloud(url, seq)) return;
+    if (seq !== speakSeq) return;
+  }
+  return speakDevice(text);
+}
+function speakDevice(text) {
+  return new Promise(resolve => {
+    if (!('speechSynthesis' in window)) { resolve(); return; }
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'ko-KR'; u.rate = Number(S.rate) || 1;
     if (!voiceKo) pickVoice(); if (voiceKo) u.voice = voiceKo;
@@ -740,9 +813,17 @@ async function speakLong(text, alive) {
   if (buf) out.push(buf);
   for (const s of out) { if (!alive()) return; await speakAsync(s, true); }
 }
-function stopSpeaking() { if ('speechSynthesis' in window) speechSynthesis.cancel(); setSpeaking(null); }
+function stopSpeaking() { haltSpeech(); setSpeaking(null); }
 let speakingNow = null;
 function setSpeaking(u) { speakingNow = u; document.body.classList.toggle('speaking', !!u); }
+/* 생각 중 표시: 답을 기다리는 동안(body.thinking) 무대 아래 받침 물결에서 빛 고리가 퍼지고 돈다.
+   생각이 끝나고 곧바로 음성을 받아 오는 식으로 이어질 때 깜빡이지 않도록, 끌 때는 잠깐 뜸을 들인다 */
+let thinkN = 0, thinkT = 0;
+function thinking(on) {
+  thinkN = Math.max(0, thinkN + (on ? 1 : -1)); clearTimeout(thinkT);
+  if (thinkN) document.body.classList.add('thinking');
+  else thinkT = setTimeout(() => document.body.classList.remove('thinking'), 180);
+}
 
 let actx = null;
 function beep(freq = 880, ms = 130) {
@@ -881,6 +962,7 @@ async function doParse() {
   const text = $('#txtLog').value.trim();
   if (!text) return;
   $('#busyLog').hidden = false; $('#sendLog').disabled = true; $('#confirmArea').innerHTML = '';
+  thinking(true);
   try {
     const r = await api('parse', { text, alarmLead: S.lead });
     S.cards.log = { raw: r.raw, items: r.items };
@@ -888,7 +970,7 @@ async function doParse() {
     const n = r.items.length, first = r.items[0];
     say(n > 1 ? `${n}건으로 정리했습니다. 확인 후 저장해 주세요.` : `${first.유형}, ${first.제목}. 저장할까요?`);
   } catch (e) { toast(e.message, true); }
-  finally { $('#busyLog').hidden = true; $('#sendLog').disabled = false; }
+  finally { thinking(false); $('#busyLog').hidden = true; $('#sendLog').disabled = false; }
 }
 
 /* ═════════════ 대화 탭: Lobby가 기록·질문·예약을 알아서 판단 ═════════════ */
@@ -1040,8 +1122,10 @@ async function talk(text, voice = false) {
   $('#thread').prepend(wrap);
   Wake.setState('think', text);
   let r;
-  try { r = await api('talk', { text, history: S.history.slice(-4), alarmLead: S.lead }); }
+  thinking(true);
+  try { r = await api('talk', { text, history: S.history.slice(-4), alarmLead: S.lead }); thinking(false); }
   catch (e) {
+    thinking(false);
     wrap.querySelector('.busy').outerHTML = `<div class="a-bub"><div class="speak">${esc(e.message)}</div></div>`;
     if (voice) await speakAsync('죄송합니다. ' + e.message);
     return;
@@ -1915,18 +1999,31 @@ function show(v) {
 function openSettings() {
   $('#sUrl').value = S.url === 'demo' ? '' : S.url; $('#sPin').value = S.pin;
   $('#sWake').value = S.wakeWords;
-  $('#sRate').value = String(S.rate); $('#sAuto').checked = S.auto; $('#sSpeak').checked = S.speak; $('#sFollow').checked = S.follow;
+  $('#sRate').value = String(S.rate); $('#sVoice').value = S.voice; if (!$('#sVoice').value) $('#sVoice').value = 'coral'; $('#sAuto').checked = S.auto; $('#sSpeak').checked = S.speak; $('#sFollow').checked = S.follow;
   $('#sAlarm').checked = S.alarmOn; $('#sAlarmVoice').checked = S.alarmVoice; $('#sLead').value = String(S.lead); $('#sTone').value = S.tone;
   $('#settings').hidden = false;
   Push.render();
 }
+/** 설정 창에서 고른 목소리로 한 문장 들려준다. OpenAI 음성이 안 되면 까닭을 알려 주고 기기 기본 음성으로 읽는다 */
+async function previewVoice() {
+  const voice = $('#sVoice').value, text = '안녕하세요, 카일님. 비서 Lobby 입니다.';
+  haltSpeech();
+  const seq = speakSeq;
+  if (voice !== 'device' && !isDemo()) {
+    try { const url = await cloudAudio(text, voice); if (seq === speakSeq && await playCloud(url, seq)) return; }
+    catch (e) { toast('OpenAI 목소리를 쓰지 못해 기기 기본 음성으로 읽습니다: ' + e.message, true); }
+    if (seq !== speakSeq) return;
+  }
+  speakDevice(text);
+}
 function saveSettings(demo) {
   S.url = demo ? 'demo' : ($('#sUrl').value.trim() || DEFAULT_URL);
-  S.pin = $('#sPin').value.trim(); S.rate = Number($('#sRate').value);
+  S.pin = $('#sPin').value.trim(); S.rate = Number($('#sRate').value); S.voice = $('#sVoice').value || 'coral';
   S.auto = $('#sAuto').checked; S.speak = $('#sSpeak').checked; S.follow = $('#sFollow').checked;
   S.wakeWords = $('#sWake').value.trim() || DEFAULT_WAKE;
   S.alarmOn = $('#sAlarm').checked; S.alarmVoice = $('#sAlarmVoice').checked; S.lead = Number($('#sLead').value); S.tone = $('#sTone').value;
-  ['url', 'pin', 'rate', 'auto', 'speak', 'follow'].forEach(k => store.set(k, S[k]));
+  ['url', 'pin', 'rate', 'voice', 'auto', 'speak', 'follow'].forEach(k => store.set(k, S[k]));
+  cloudOff = false;                                // 서버 주소·목소리를 바꿨을 수 있으니 OpenAI 음성을 다시 시도한다
   store.set('alarm', S.alarmOn); store.set('alarmVoice', S.alarmVoice); store.set('lead', S.lead); store.set('tone', S.tone);
   store.set('wake', S.wakeWords);
   Wake.re = wakeRegex();
@@ -1970,7 +2067,7 @@ $('#docFile').addEventListener('change', e => openUploadPlan(e.target.files));
 (function waves() {
   const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const items = [...document.querySelectorAll('.wave')].map(cv => ({ cv, ctx: cv.getContext('2d'), mic: cv.parentElement.querySelector('.mic'), level: 0.5, talk: !!cv.closest('#v-talk') }));
-  const live = it => it.mic.classList.contains('on') || (it.talk && document.body.classList.contains('speaking'));
+  const live = it => it.mic.classList.contains('on');   // 이퀄라이저는 카일님이 말할 때만 움직인다 (Lobby가 말할 때는 눈·궤도, 생각할 때는 받침 물결)
   function draw(it, t) {
     const { cv, ctx } = it;
     const w = cv.clientWidth, h = cv.clientHeight; if (!w || !h) return;
@@ -2007,6 +2104,7 @@ $('#docFile').addEventListener('change', e => openUploadPlan(e.target.files));
   if (still) { window.addEventListener('resize', () => items.forEach(it => draw(it, 0))); document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => setTimeout(() => items.forEach(it => draw(it, 0)), 50))); }
 })();
 $('#micTalk').addEventListener('click', micTalk);
+$('#btnVoiceTest').addEventListener('click', previewVoice);
 $('#sendLog').addEventListener('click', doParse);
 $('#sendTalk').addEventListener('click', () => talk($('#txtTalk').value));
 ['#txtLog', '#txtTalk'].forEach(sel => {

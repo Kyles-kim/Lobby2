@@ -9,6 +9,8 @@
  *  - CRON_SECRET       : 자동 실행(1분마다)이 서버를 부를 때 쓰는 암호 (supabase/cron.sql 참고)
  *  - LOBBY_MODEL       : (선택) 모델을 바꿀 때만
  *  - VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY : (선택) 휴대폰 알림 서명 키. 없으면 서버가 처음 한 번 만들어 app_keys 표에 보관한다
+ *  - OPENAI_API_KEY    : (선택) OpenAI 키. 있으면 Lobby가 OpenAI 음성(사람 같은 목소리)으로 말하고, 없으면 앱이 휴대폰 기본 음성으로 읽는다
+ *  - OPENAI_TTS_MODEL / OPENAI_TTS_VOICE / OPENAI_TTS_STYLE : (선택) 음성 모델 · 앱이 목소리를 지정하지 않았을 때 쓸 목소리 · 말투 지시문
  */
 import { createClient } from "npm:@supabase/supabase-js@2";
 import Anthropic from "npm:@anthropic-ai/sdk";
@@ -42,7 +44,7 @@ const CONFIG = {
   ALARM_GRACE_MIN: 60,          // 이 시간(분) 넘게 지난 알림은 늦게라도 울리지 않고 버린다
   PUSH_CONTACT: "https://github.com/kyles-kim/Lobby2",   // 휴대폰 알림 서버(애플·구글)에 알려 주는 연락처
 };
-const BUILD = "2026-10-08 Lobby2 · Supabase · 일정 알림 · 도면·사진";
+const BUILD = "2026-10-12 Lobby2 · Supabase · 일정 알림 · 도면·사진 · OpenAI 음성";
 
 const TYPES = ["일상", "지출", "일정", "업무일정", "정보", "특이점", "아이디어", "할일"];
 const STATES = ["정상", "예정", "완료", "취소", "삭제"];
@@ -142,6 +144,7 @@ Deno.serve(async (request) => {
       await new Promise((r) => setTimeout(r, 800));               // 암호를 마구 넣어 보는 시도를 늦춘다
       return json({ ok: false, error: "접속 암호가 맞지 않습니다." });
     }
+    if (req.action === "tts") return json({ ok: true, ...(await actTts(req)) });   // 음성 합성은 답변 직후 바로 소리가 나야 해서 사용 요금 집계를 건너뛴다
     const fn = handlers[req.action];
     if (!fn) return json({ ok: false, error: "알 수 없는 요청: " + req.action });
     const out: any = { ok: true, ...(await fn(req)) };
@@ -151,6 +154,27 @@ Deno.serve(async (request) => {
     return json({ ok: false, error: String(err && err.message || err) });
   }
 });
+
+// ───────────────────────── 음성 합성 (OpenAI TTS) ─────────────────────────
+/** 글을 OpenAI 음성으로 읽은 mp3를 돌려준다. 키가 없거나 OpenAI가 거절하면 오류를 내고, 앱은 그때 휴대폰 기본 음성으로 읽는다.
+ *  읽는 속도는 앱이 재생 속도로 맞추므로 여기서는 다루지 않는다 */
+async function actTts(req: any) {
+  const key = Deno.env.get("OPENAI_API_KEY");
+  if (!key) throw new Error("서버에 OpenAI 키(OPENAI_API_KEY)가 등록되어 있지 않습니다.");
+  const text = String(req.text || "").trim().slice(0, 900);          // 음성 모델이 한 번에 받는 분량 안쪽으로
+  if (!text) throw new Error("읽을 내용이 없습니다.");
+  const voice = /^[a-z]{2,20}$/.test(String(req.voice || "")) ? String(req.voice) : (Deno.env.get("OPENAI_TTS_VOICE") || "coral");
+  const res = await fetch("https://api.openai.com/v1/audio/speech", {
+    method: "POST",
+    headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: Deno.env.get("OPENAI_TTS_MODEL") || "gpt-4o-mini-tts", voice, input: text, response_format: "mp3",
+      instructions: Deno.env.get("OPENAI_TTS_STYLE") || "밝고 다정한 개인 비서의 말투로, 자연스러운 한국어 억양으로 또박또박 말해 주세요.",
+    }),
+  });
+  if (!res.ok) throw new Error("OpenAI 음성 오류(" + res.status + "): " + (await res.text()).slice(0, 200));
+  return { audio: encodeBase64(new Uint8Array(await res.arrayBuffer())), mime: "audio/mpeg" };
+}
 
 // ───────────────────────── init ─────────────────────────
 async function actInit() {
