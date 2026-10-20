@@ -28,8 +28,10 @@ def query(sql: str):
             return json.loads(r.read() or b"[]")
     except urllib.error.HTTPError as e:
         body = e.read().decode(errors="replace")[:500]
-        if e.code in (401, 403):
-            raise SystemExit(f"::error::토큰에 DB 권한이 없어 표 업데이트를 하지 못했습니다 (HTTP {e.code}). Supabase Access Tokens에서 전체 권한 토큰을 만들어 등록해 주세요.")
+        if e.code == 401:
+            raise SystemExit("::error::Supabase가 토큰을 받아 주지 않습니다 (HTTP 401). 토큰이 만료됐거나 삭제됐습니다. Access Tokens에서 새 토큰을 만들어 SUPABASE_ACCESS_TOKEN을 바꿔 주세요.")
+        if e.code == 403:
+            raise SystemExit("::error::토큰에 DB 권한이 없어 표 업데이트를 하지 못했습니다 (HTTP 403). Supabase Access Tokens에서 전체 권한 토큰을 만들어 등록해 주세요.")
         raise SystemExit(f"::error::SQL 실행 실패 (HTTP {e.code}): {body}")
 
 

@@ -57,10 +57,12 @@ jobs:
           case "$token" in sbp_*) ;; *) echo "::warning::SUPABASE_ACCESS_TOKEN이 'sbp_'로 시작하지 않습니다 (길이 ${#token}). Access Tokens에서 만든 토큰이 맞는지 확인해 주세요." ;; esac
           echo "$ref" | grep -Eq '^[a-z0-9]{20}$' || echo "::warning::SUPABASE_PROJECT_REF가 프로젝트 ID 모양(영문 소문자·숫자 20자)이 아닙니다 (길이 ${#ref})."
           code=$(curl -s -o projects.json -w '%{http_code}' -H "Authorization: Bearer $token" https://api.supabase.com/v1/projects)
-          if [ "$code" != 200 ]; then
-            echo "::error::토큰으로 Supabase 프로젝트 목록을 읽지 못했습니다 (HTTP $code). 토큰이 잘못됐거나 권한이 부족합니다. Access Tokens에서 전체 권한 토큰을 새로 만들어 등록해 주세요."
+          if [ "$code" = 401 ]; then
+            echo "::error::Supabase가 토큰을 받아 주지 않습니다 (HTTP 401). 토큰이 만료됐거나 삭제됐거나 잘못 복사됐습니다. Access Tokens에서 새 토큰을 만들어 SUPABASE_ACCESS_TOKEN을 바꿔 주세요."; exit 1
+          elif [ "$code" != 200 ]; then
+            echo "::error::토큰으로 Supabase 프로젝트 목록을 읽지 못했습니다 (HTTP $code). 토큰 권한이 부족합니다. Access Tokens에서 전체 권한 토큰을 새로 만들어 등록해 주세요."; exit 1
           elif ! python3 -c 'import json,sys; sys.exit(0 if any(p.get("id")==sys.argv[1] or p.get("ref")==sys.argv[1] for p in json.load(open("projects.json"))) else 1)' "$ref"; then
-            echo "::error::토큰은 맞지만 SUPABASE_PROJECT_REF와 같은 프로젝트가 이 토큰으로 보이지 않습니다. 프로젝트 ID 또는 토큰의 대상 프로젝트를 확인해 주세요."
+            echo "::error::토큰은 맞지만 SUPABASE_PROJECT_REF와 같은 프로젝트가 이 토큰으로 보이지 않습니다. 프로젝트 ID 또는 토큰의 대상 프로젝트를 확인해 주세요."; exit 1
           else
             echo "토큰과 프로젝트 ID 확인 완료"
           fi
