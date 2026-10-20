@@ -540,6 +540,8 @@ body.speaking.beat .fx .ln{animation-name:flashB}
       <select id="sRate"><option value="0.9">조금 느리게</option><option value="1" selected>보통</option><option value="1.15">조금 빠르게</option><option value="1.3">빠르게</option></select></label>
     <label class="fld"><span>목소리 (OpenAI 목소리는 인터넷이 될 때만, 안 되면 기기 기본 음성으로 읽습니다)</span>
       <select id="sVoice"><option value="coral">OpenAI · coral</option><option value="nova">OpenAI · nova</option><option value="shimmer">OpenAI · shimmer</option><option value="sage">OpenAI · sage</option><option value="alloy">OpenAI · alloy</option><option value="ash">OpenAI · ash</option><option value="ballad">OpenAI · ballad</option><option value="echo">OpenAI · echo</option><option value="fable">OpenAI · fable</option><option value="onyx">OpenAI · onyx</option><option value="verse">OpenAI · verse</option><option value="marin">OpenAI · marin</option><option value="cedar">OpenAI · cedar</option><option value="device">기기 기본 음성</option></select></label>
+    <label class="fld"><span>말투 (OpenAI 목소리일 때)</span>
+      <select id="sStyle"><option value="bright">발랄하게</option><option value="warm">다정하게</option><option value="calm">차분하게</option></select></label>
     <div class="btns" style="justify-content:flex-start"><button class="btn sm" id="btnVoiceTest" type="button">목소리 미리 듣기</button></div>
     <label class="check"><input type="checkbox" id="sAuto" checked>말이 끝나면 자동으로 정리·질문</label>
     <label class="check"><input type="checkbox" id="sSpeak" checked>답변을 음성으로 읽기</label>
@@ -607,7 +609,7 @@ const DEFAULT_WAKE = '안녕 로비, 헤이 로비, 로비야, 로비, lobby';
 const WEEK = ['월','화','수','목','금','토','일'];
 const S = {
   url: store.get('url', DEFAULT_URL), pin: store.get('pin', ''),
-  rate: store.get('rate', 1), voice: store.get('voice', 'coral'), auto: store.get('auto', true), speak: store.get('speak', true),
+  rate: store.get('rate', 1), voice: store.get('voice', 'coral'), style: store.get('style', 'bright'), auto: store.get('auto', true), speak: store.get('speak', true),
   follow: store.get('follow', true), wakeWords: store.get('wake', DEFAULT_WAKE),
   alarmOn: store.get('alarm', true), alarmVoice: store.get('alarmVoice', true), lead: store.get('lead', 10), tone: store.get('tone', 'chime'),
   types: ['일상','지출','일정','업무일정','정보','특이점','아이디어','할일'],
@@ -739,12 +741,12 @@ const ttsAudio = new Audio(), ttsCache = new Map();
 /** 지금 나오는 말(OpenAI·기본 음성 모두)을 끊고, 준비 중이던 말도 취소한다 */
 function haltSpeech() { speakSeq++; if (ttsHalt) ttsHalt(); if ('speechSynthesis' in window) speechSynthesis.cancel(); }
 /** 서버에서 OpenAI 음성(mp3)을 받아 재생용 주소로 돌려준다. 같은 말은 다시 받지 않는다 */
-async function cloudAudio(text, voice) {
-  const key = voice + '|' + text;
+async function cloudAudio(text, voice, style = S.style) {
+  const key = voice + '|' + style + '|' + text;
   if (ttsCache.has(key)) return ttsCache.get(key);
   const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 7000);   // 오래 걸리면 기다리지 않고 기본 음성으로 넘어간다
   try {
-    const j = await (await fetch(S.url, { method: 'POST', body: JSON.stringify({ action: 'tts', pin: S.pin, text, voice }), signal: ctl.signal })).json();
+    const j = await (await fetch(S.url, { method: 'POST', body: JSON.stringify({ action: 'tts', pin: S.pin, text, voice, style }), signal: ctl.signal })).json();
     if (!j.ok || !j.audio) {
       // 서버에 키가 없거나 서버가 옛 버전이면 다시 물어봐도 같으므로, 앱을 다시 열 때까지 기본 음성만 쓴다
       if (/등록되어 있지 않습니다|알 수 없는 요청/.test(j.error || '')) cloudOff = true;
@@ -1999,18 +2001,18 @@ function show(v) {
 function openSettings() {
   $('#sUrl').value = S.url === 'demo' ? '' : S.url; $('#sPin').value = S.pin;
   $('#sWake').value = S.wakeWords;
-  $('#sRate').value = String(S.rate); $('#sVoice').value = S.voice; if (!$('#sVoice').value) $('#sVoice').value = 'coral'; $('#sAuto').checked = S.auto; $('#sSpeak').checked = S.speak; $('#sFollow').checked = S.follow;
+  $('#sRate').value = String(S.rate); $('#sVoice').value = S.voice; if (!$('#sVoice').value) $('#sVoice').value = 'coral'; $('#sStyle').value = S.style; $('#sAuto').checked = S.auto; $('#sSpeak').checked = S.speak; $('#sFollow').checked = S.follow;
   $('#sAlarm').checked = S.alarmOn; $('#sAlarmVoice').checked = S.alarmVoice; $('#sLead').value = String(S.lead); $('#sTone').value = S.tone;
   $('#settings').hidden = false;
   Push.render();
 }
 /** 설정 창에서 고른 목소리로 한 문장 들려준다. OpenAI 음성이 안 되면 까닭을 알려 주고 기기 기본 음성으로 읽는다 */
 async function previewVoice() {
-  const voice = $('#sVoice').value, text = '안녕하세요, 카일님. 비서 Lobby 입니다.';
+  const voice = $('#sVoice').value, style = $('#sStyle').value, text = '안녕하세요, 카일님! 오늘도 힘차게 시작해 볼까요? 비서 Lobby 입니다.';
   haltSpeech();
   const seq = speakSeq;
   if (voice !== 'device' && !isDemo()) {
-    try { const url = await cloudAudio(text, voice); if (seq === speakSeq && await playCloud(url, seq)) return; }
+    try { const url = await cloudAudio(text, voice, style); if (seq === speakSeq && await playCloud(url, seq)) return; }
     catch (e) { toast('OpenAI 목소리를 쓰지 못해 기기 기본 음성으로 읽습니다: ' + e.message, true); }
     if (seq !== speakSeq) return;
   }
@@ -2018,11 +2020,11 @@ async function previewVoice() {
 }
 function saveSettings(demo) {
   S.url = demo ? 'demo' : ($('#sUrl').value.trim() || DEFAULT_URL);
-  S.pin = $('#sPin').value.trim(); S.rate = Number($('#sRate').value); S.voice = $('#sVoice').value || 'coral';
+  S.pin = $('#sPin').value.trim(); S.rate = Number($('#sRate').value); S.voice = $('#sVoice').value || 'coral'; S.style = $('#sStyle').value || 'bright';
   S.auto = $('#sAuto').checked; S.speak = $('#sSpeak').checked; S.follow = $('#sFollow').checked;
   S.wakeWords = $('#sWake').value.trim() || DEFAULT_WAKE;
   S.alarmOn = $('#sAlarm').checked; S.alarmVoice = $('#sAlarmVoice').checked; S.lead = Number($('#sLead').value); S.tone = $('#sTone').value;
-  ['url', 'pin', 'rate', 'voice', 'auto', 'speak', 'follow'].forEach(k => store.set(k, S[k]));
+  ['url', 'pin', 'rate', 'voice', 'style', 'auto', 'speak', 'follow'].forEach(k => store.set(k, S[k]));
   cloudOff = false;                                // 서버 주소·목소리를 바꿨을 수 있으니 OpenAI 음성을 다시 시도한다
   store.set('alarm', S.alarmOn); store.set('alarmVoice', S.alarmVoice); store.set('lead', S.lead); store.set('tone', S.tone);
   store.set('wake', S.wakeWords);

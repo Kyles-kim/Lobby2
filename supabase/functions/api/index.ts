@@ -158,6 +158,12 @@ Deno.serve(async (request) => {
 // ───────────────────────── 음성 합성 (OpenAI TTS) ─────────────────────────
 /** 글을 OpenAI 음성으로 읽은 mp3를 돌려준다. 키가 없거나 OpenAI가 거절하면 오류를 내고, 앱은 그때 휴대폰 기본 음성으로 읽는다.
  *  읽는 속도는 앱이 재생 속도로 맞추므로 여기서는 다루지 않는다 */
+/** 말투(앱 설정 > 말투): OpenAI 음성 모델에 주는 연기 지시 */
+const TTS_STYLES: Record<string, string> = {
+  bright: "밝고 발랄한 개인 비서처럼, 생기 있고 경쾌한 목소리로 말해 주세요. 미소를 머금은 듯 밝게, 문장 끝은 살짝 올려 기분 좋게 마무리하고, 템포는 조금 빠르고 리듬감 있게. 활기차되 과장되거나 소리치지 않게, 자연스러운 한국어 억양으로.",
+  warm: "밝고 다정한 개인 비서의 말투로, 자연스러운 한국어 억양으로 또박또박 말해 주세요.",
+  calm: "차분하고 신뢰감 있는 아나운서처럼, 안정된 톤과 보통 빠르기로 또박또박 말해 주세요. 자연스러운 한국어 억양으로.",
+};
 async function actTts(req: any) {
   const key = Deno.env.get("OPENAI_API_KEY");
   if (!key) throw new Error("서버에 OpenAI 키(OPENAI_API_KEY)가 등록되어 있지 않습니다.");
@@ -169,7 +175,7 @@ async function actTts(req: any) {
     headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: Deno.env.get("OPENAI_TTS_MODEL") || "gpt-4o-mini-tts", voice, input: text, response_format: "mp3",
-      instructions: Deno.env.get("OPENAI_TTS_STYLE") || "밝고 다정한 개인 비서의 말투로, 자연스러운 한국어 억양으로 또박또박 말해 주세요.",
+      instructions: (Object.hasOwn(TTS_STYLES, req.style) && TTS_STYLES[req.style]) || Deno.env.get("OPENAI_TTS_STYLE") || TTS_STYLES.bright,
     }),
   });
   if (!res.ok) throw new Error("OpenAI 음성 오류(" + res.status + "): " + (await res.text()).slice(0, 200));
