@@ -284,7 +284,7 @@ async function actParse(req: any) {
     '- 한 발화에 여러 건이 있으면 각각 나눈다. 호출어("로비야", "안녕 로비" 등)는 내용에서 뺀다.',
     '- 대상일은 yyyy-MM-dd. "어제"=오늘-1, "그저께"=오늘-2, "다음 주 X요일"=다음 주(월~일)의 X요일, "이번 주말"=이번 주 토요일(내용에 "주말" 표기), "다음 달 초"=다음 달 1일(내용에 "초순" 표기).',
     '- 날짜 언급이 없으면 일상·지출·정보·특이점·아이디어는 오늘(할일은 ""). 일정·업무일정인데 날짜가 없으면 대상일을 ""로 두고 확인필요에 질문을 적는다.',
-    '- 대상시각은 HH:mm(24시간). 없으면 "".',
+    '- 대상시각은 HH:mm(24시간). 없으면 "". 오전·오후 말이 없는 앞으로의 시각은 현재 시각 이후 가장 가까운 시각으로 본다(예: 현재 23:18에 "11시 19분" → 23:19, 현재 09:00에 "3시" → 15:00).',
     '- "~시에 알려 줘", "~하라고 깨워 줘", "알림 맞춰 줘", "리마인드 해 줘"처럼 그 시각에 알려 달라는 말은 할일(약속·회의면 일정·업무일정)로 정리하고 대상일·대상시각을 그 시각으로 채운다.',
     '- 알림: 몇 분 전에 소리로 알려 줄지(분, 정수). "30분 전에 알려 줘"=30, "1시간 전에"=60, "하루 전에"=1440, "~시에 알려 줘"·"그때 알려 줘"=0. 알림이 필요 없다고 하면 -1. 알림 언급이 없으면 null.',
     '- 금액은 원 단위 정수. "8만5천"=85000. 없으면 null.',
@@ -301,11 +301,11 @@ async function actParse(req: any) {
 
   const out = extractJson(await callClaude(system, text, 2000));
   const lead = alarmVal(req.alarmLead) || String(CONFIG.ALARM_DEFAULT_MIN);
-  const items = (out.items || []).map((it: any) => normalizeItem(it, cats, lead));
+  const items = (out.items || []).map((it: any) => normalizeItem(it, cats, lead, text));
   return { items, raw: text };
 }
 
-function normalizeItem(it: any, cats: any[], lead = String(CONFIG.ALARM_DEFAULT_MIN)) {
+function normalizeItem(it: any, cats: any[], lead = String(CONFIG.ALARM_DEFAULT_MIN), text = "") {
   const names = cats.map((c) => c.name);
   const o: any = {
     유형: TYPES.indexOf(it.유형) >= 0 ? it.유형 : "일상",
@@ -330,7 +330,21 @@ function normalizeItem(it: any, cats: any[], lead = String(CONFIG.ALARM_DEFAULT_
   const asked = it.알림 === null || it.알림 === undefined || it.알림 === "" ? null : Number(it.알림);
   if (asked !== null && isFinite(asked)) o.알림 = asked < 0 ? "" : alarmVal(asked);
   else if (o.상태 === "예정" && o.대상시각) o.알림 = /일정/.test(o.유형) ? lead : o.유형 === "할일" ? "0" : "";
+  if (o.상태 === "예정") fixUpcomingTime(o, text);
   return o;
+}
+
+/** 앞으로의 시각 바로잡기: 오전·오후 말 없이 이미 지난 시각이면 다가오는 오후로 (밤 11:18에 "11시 19분" → 23:19),
+ *  날짜 없이 시각만 말한 알림은 오늘(이미 지났으면 내일)로 */
+function fixUpcomingTime(o: any, text: string) {
+  const t = normTime(o.대상시각);
+  if (!t) return;
+  o.대상시각 = t;
+  const p = kst(), h = Number(t.slice(0, 2)), pm = z2(h + 12) + t.slice(2);
+  const said = /오전|오후|아침|새벽|저녁|밤|낮|정오|자정|am|pm/i.test(text);
+  const todayOrNone = !o.대상일 || o.대상일 === p.ymd;
+  if (todayOrNone && !said && h >= 1 && h < 12 && t <= p.hm && pm > p.hm) { o.대상시각 = pm; if (!o.대상일) o.대상일 = p.ymd; }
+  if (!o.대상일 && o.알림 !== "") o.대상일 = o.대상시각 > p.hm ? p.ymd : ymdAdd(p.ymd, 1);
 }
 
 // ───────────────────────── 기록: 저장(save) ─────────────────────────
@@ -369,7 +383,11 @@ async function actSave(req: any) {
   }
   await alarmSafe(run(db.from("records").insert(rows, { defaultToNull: false })));   // 알림 칸이 없는 행은 빈칸(기본값)으로
   const alarms = rows.filter((r) => r.alarm_at).map((r) => alarmPick(toKo(r, REC_MAP)));
-  return { ids, recent: await recent(5), alarms };
+  // 알림을 원했는데 걸지 못한 기록은 저장할 때 바로 알린다 (조용히 울리지 않는 일이 없게)
+  const alarmMissed = rows.filter((r) => r.alarm && !r.alarm_at).map((r) => ({
+    제목: r.title, 이유: !r.target_date ? "날짜가 없어" : "시각이 이미 지나",
+  }));
+  return { ids, recent: await recent(5), alarms, alarmMissed };
 }
 
 async function nextSeq(prefix: string) {

@@ -931,7 +931,10 @@ async function saveCard(cid) {
     } else if (box) box.innerHTML = `<div class="card saved">✓ 저장했습니다 · ${r.ids.length}건</div>`;
     renderRecent(r.recent);
     const al = (r.alarms || [])[0];
-    toast(`저장했습니다 (${r.ids.length}건)` + (al ? ` · 🔔 ${alarmAtWords(al.알림시각)}에 알려 드릴게요` : ''));
+    const miss = (r.alarmMissed || [])[0];
+    if (miss) toast(`저장했지만 ‘${miss.제목}’은(는) ${miss.이유} 알림을 걸지 못했습니다. 수정 탭에서 날짜·시각을 고쳐 주세요`, true);
+    else toast(`저장했습니다 (${r.ids.length}건)` + (al ? ` · 🔔 ${alarmAtWords(al.알림시각)}에 알려 드릴게요` : ''));
+    if (al) Push.nudge();
     refreshCategories(); loadTodos(); Alarm.load();
     return r;
   } catch (e) { toast(e.message, true); if (btn) btn.disabled = false; return false; }
@@ -1932,6 +1935,19 @@ const Push = {
     if (Notification.permission === 'denied') return ['알림이 차단되어 있습니다. 휴대폰 설정에서 Lobby2 알림을 허용해 주세요', 'bad', false];
     const s = await this.sub();
     return s && Notification.permission === 'granted' ? ['✓ 이 기기에서 휴대폰 알림을 받고 있습니다', 'on', true] : ['꺼져 있음 — 켜 두면 앱을 닫아도 알림이 옵니다', '', false];
+  },
+  /** 알림을 걸었는데 이 기기에 휴대폰 알림이 꺼져 있으면 켜도록 권한다 (사흘에 한 번까지) */
+  async nudge() {
+    if (isDemo() || !this.ok()) return;
+    const [, cls, on] = await this.state();
+    if (on || cls === 'bad' || Date.now() - store.get('pushNudge', 0) < 3 * 86400000) return;
+    store.set('pushNudge', Date.now());
+    await sleep(2600);                               // 저장 안내를 먼저 읽을 수 있게
+    if (confirm('휴대폰 알림이 꺼져 있어, 앱을 닫거나 화면이 꺼지면 알림이 울리지 않습니다.\n설정에서 ‘휴대폰 알림 받기’를 켤까요?')) {
+      openSettings();
+      setTimeout(() => { $('#sPush').scrollIntoView({ block: 'center', behavior: 'smooth' }); $('#sPush').focus(); }, 200);
+      toast('‘휴대폰 알림 받기’를 눌러 알림을 허용해 주세요');
+    }
   },
   async render() {
     const [txt, cls, on] = await this.state();
