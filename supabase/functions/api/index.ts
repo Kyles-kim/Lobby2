@@ -37,6 +37,7 @@ const CONFIG = {
   PDF_AI_MAX_MB: 20,            // 글자를 못 뽑은 PDF(스캔본·도면)를 Claude로 읽을 때 최대 크기
   IMAGE_MAX_MB: 5,              // 사진 글자 인식 최대 크기
   DOC_READ_CHARS: 4000,         // "읽어 주기"로 한 번에 읽어 주는 분량(글자)
+  DIMS_MAX: 10,                 // 문서마다 기억하는 주요 치수 줄 수 (전장·전폭·전고 …)
   LINK_HOURS: 24,               // 문서 열기 링크가 유효한 시간
   BUCKET: "docs",
   ALARM_DEFAULT_MIN: 10,        // 일정·업무일정에 시각이 있으면 기본으로 몇 분 전에 알릴지 (앱 설정에서 바꿀 수 있음)
@@ -481,7 +482,9 @@ async function answer(q: string, plan: any, history: any[]) {
     '- 문서발췌에 답이 없으면 "등록된 문서에서 찾지 못했습니다"라고 말하고, 어떤 문서를 문서 탭에서 올리면 되는지 한 줄로 제안한다.',
     "- 카일님이 문서를 보여 달라·열어 달라고 하면 그 문서가 무엇에 관한 것인지 한두 문장으로 말하고 \"화면에서 바로 열 수 있습니다\"라고 덧붙인다(근거문서에 그 문서의 번호를 넣으면 화면에 열기 버튼이 나온다). 읽어 달라고 하면 음성에 핵심 내용을 3~5문장으로 읽기 좋게 옮긴다.",
     "- 도면·제품사진(형식이 이미지이거나 내용이 [도면]·[사진]으로 시작)을 보여 달라거나 치수·형상을 물으면 근거문서에 그 번호를 꼭 넣는다(화면에 도면·사진 미리보기가 나온다). 같은 제품의 승인원·도면·사진이 함께 있으면 함께 넣는다.",
-    "- 치수는 [도면] 판독의 \"뷰·부분 - 치수 이름: 값 공차\"를 근거로, 어느 부분의 치수인지 함께 말한다. 적용 원료·재질은 표제란이나 승인원의 값을 그대로 쓴다.",
+    "- 전장·전폭·전고 같은 주요 치수는 문서발췌의 주요치수 값을 그대로 쓴다. 치수확인이 \"카일님 확인\"이면 판독 본문과 달라도 그 값이 정답이다.",
+    "- 그 밖의 치수는 [도면] 판독의 \"뷰·부분 - 치수 이름: 값 공차\"를 근거로, 어느 부분의 치수인지 함께 말한다. 적용 원료·재질·금형번호는 표제란이나 승인원의 값을 그대로 쓴다.",
+    "- 물은 치수·금형번호가 문서발췌에 없으면 비슷한 숫자로 짐작하지 말고 \"도면에서 ○○을(를) 찾지 못했습니다\"라고 말한다. 같은 제품의 다른 부품(예: FRONT와 REAR) 도면 값을 섞지 않는다.",
     "- 출처가 없음(인사·잡담·일반 상식)이면 알고 있는 지식으로 짧고 따뜻하게 답한다.",
     '- 숫자(합계·건수·평균)는 [조회결과].통계 값을 그대로 쓴다. 직접 다시 계산하지 않는다(단, 조회방식에 "풀어서"가 있으면 기록을 직접 읽고 관련 건만 세어 건수를 말한다).',
     "- 규격·치수·공차·검사기준·수량 같은 문서 수치는 단위까지 원문 그대로 옮긴다. 추정·반올림 금지.",
@@ -619,7 +622,10 @@ async function actUploadUrl(req: any) {
 
 /** 문서의 품번·제품명(품명)·메모 바꾸기 (다시 읽지 않아도 바로 검색에 쓰인다) */
 async function actDocMemo(req: any) {
-  await memoSafe(run(db.from("docs").update({ part_no: cleanPart(req.part), product: cleanText(req.product, 60), memo: cleanText(req.memo, 100) }).eq("id", String(req.id))));
+  const patch: any = { part_no: cleanPart(req.part), product: cleanText(req.product, 60) };
+  if (req.memo !== undefined) patch.memo = cleanText(req.memo, 100);
+  if (req.dims !== undefined) { patch.dims = dimsList(req.dims).join("\n"); patch.dims_ok = patch.dims ? nowStr() : ""; }   // 카일님이 확인한 주요 치수
+  await memoSafe(run(db.from("docs").update(patch).eq("id", String(req.id))));
   return await actDocs();
 }
 const cleanText = (v: any, n: number) => String(v || "").trim().replace(/\s+/g, " ").slice(0, n);
@@ -629,6 +635,7 @@ const cleanPart = (v: any) => String(v || "").trim().replace(/\s+/g, " ").toUppe
 /** 메모 칸이 없는 DB(아직 docs_media.sql을 실행하지 않음)에서 나는 오류를 알아듣기 쉽게 바꾼다 */
 async function memoSafe<T>(p: Promise<T>) {
   try { return await p; } catch (e: any) {
+    if (/dims/.test(String(e && e.message))) throw new Error("주요 치수 기능용 표 업데이트가 필요합니다. GitHub Actions에서 \"Lobby 서버 배포\"를 실행하거나 Supabase SQL Editor에서 supabase/migrations/20261021000000_docs_dims.sql을 실행해 주세요.");
     if (/memo|part_no|product/.test(String(e && e.message))) throw new Error("품번·제품명·메모 기능용 표 업데이트가 필요합니다. Supabase SQL Editor에서 supabase/migrations/20261008000000_docs_media.sql을 한 번 실행해 주세요.");
     throw e;
   }
@@ -668,8 +675,25 @@ async function indexDoc(doc: any) {
     if (!doc.product && m.product) patch.product = m.product;
     if (Object.keys(patch).length) await run(db.from("docs").update(patch).eq("id", doc.id)).catch(() => {});
   }
+  // 도면이면 주요 치수(전장·전폭·전고)를 읽은 값으로 채워 둔다 → 화면에서 카일님이 확인·수정 (이미 확인한 치수는 덮어쓰지 않는다)
+  if (!doc.dims_ok && segs.some((x) => x.text.startsWith("[도면]"))) {
+    const dims = dimsFromText(segs);
+    if (dims.length) await run(db.from("docs").update({ dims: dims.join("\n"), dims_ok: "" }).eq("id", doc.id)).catch(() => {});
+  }
   return status;
 }
+
+/** 도면 판독 결과의 "■ 주요 치수" 부분 → ["전장: 358.10 (±0.2)", "전폭: 258.55 (±0.15)", …] */
+function dimsFromText(segs: Seg[]) {
+  const t = segs.slice(0, 6).map((x) => x.text).join("\n");
+  const m = t.match(/■\s*주요\s*치수\s*[:：]?([^\n]*(?:\n(?!\s*■)[^\n]*)*)/);   // 제목 줄 뒤부터 다음 ■ 앞까지 (제목과 같은 줄에 적은 값 포함)
+  if (!m) return [];
+  return m[1].split("\n").map((l) => l.replace(/^[\s\-•·*]+/, "").trim())
+    .filter((l) => /^[^:：]{1,15}[:：]\s*\S/.test(l) && !/판독\s*불가|없음/.test(l)).map(cleanDim).slice(0, CONFIG.DIMS_MAX);
+}
+/** 치수 한 줄 정리: "전장 : 358.10(±0.2)" → "전장: 358.10 (±0.2)" */
+const cleanDim = (v: any) => cleanText(v, 60).replace(/\s*[:：]\s*/, ": ").replace(/\s*\(\s*/, " (").replace(/\s*\)/, ")");
+const dimsList = (v: any): string[] => (Array.isArray(v) ? v : String(v || "").split("\n")).map(cleanDim).filter((l: string) => /\S/.test(l)).slice(0, CONFIG.DIMS_MAX);
 
 /** 문서 앞부분에서 "품번: …", "품명: …" 찾기 (도면 판독 결과의 표제란, 승인원 표 등) */
 function metaFromText(segs: Seg[]) {
@@ -756,7 +780,8 @@ const TRANSCRIBE = '글자를 빠짐없이 옮겨 적어라. 표는 한 행을 "
 // 도면 판독: 숫자만 옮기면 어느 부분 치수인지 알 수 없으므로 "부분 - 치수: 값 공차" 형태로 정리하게 한다
 const DRAWING = [
   "이 도면을 보고 아래 순서로 빠짐없이 적어라. 보이는 값만 적고 추정하지 않는다. 읽기 어려운 값은 (판독 불가)로 적는다.",
-  "■ 표제란: 도번, 품번, 품명, 재질·적용 원료(그레이드 포함), 색상, 척도, 단위, 리비전, 작성·승인일 등 보이는 항목을 \"항목: 값\"으로 한 줄씩",
+  "■ 표제란: 도번, 품번, 품명, 금형번호, 재질·적용 원료(그레이드 포함), 색상, 척도, 단위, 리비전, 작성·승인일 등 보이는 항목을 \"항목: 값\"으로 한 줄씩",
+  "■ 주요 치수: 제품 외형 전체 치수를 한 줄에 하나씩 \"전장: 358.10 (±0.2)\", \"전폭: 258.55 (±0.15)\", \"전고: 45.0 (+0.1/-0.05)\" 형식으로 (전장=가장 긴 외형 치수, 전폭=그와 직각인 외형 치수, 전고=높이·두께). 공차가 따로 없으면 일반공차를 괄호에, 그것도 없으면 괄호 없이. 도면에 없는 항목은 적지 않는다",
   "■ 치수: 한 줄에 하나씩 \"뷰·부분 - 치수 이름: 값 공차\" (예: \"정면도 - 전장: 142.0 ±0.05 mm\", \"측면도 - 체결 구멍 지름: Ø3.2 +0.1/0\"). Ø·R·C·±·기하공차 기호와 단위는 그대로",
   "■ 일반공차·주석·표면처리·검사 기준: 원문 그대로",
   "■ 형상: 어떤 부품인지, 형태와 주요 특징을 두세 문장으로",
@@ -834,8 +859,8 @@ async function getDocNames() {
 async function docRows(cols: string, more: (q: any) => any = (q) => q): Promise<any[]> {
   try { return await run<any[]>(more(db.from("docs").select(cols))); }
   catch (e: any) {
-    if (!/memo|part_no|product/.test(String(e && e.message))) throw e;
-    return await run<any[]>(more(db.from("docs").select(cols.split(",").filter((c) => ["memo", "part_no", "product"].indexOf(c.trim()) < 0).join(","))));
+    if (!/memo|part_no|product|dims/.test(String(e && e.message))) throw e;
+    return await run<any[]>(more(db.from("docs").select(cols.split(",").filter((c) => ["memo", "part_no", "product", "dims", "dims_ok"].indexOf(c.trim()) < 0).join(","))));
   }
 }
 
@@ -879,9 +904,10 @@ async function searchDocs(keywords: string[], files: string[], q: string) {
   if (!ids.length) return [];
   const rows = await run<any[]>(db.from("doc_chunks").select("*").in("id", ids));
   const info: Record<string, any> = {};
-  (await docRows("id,kind,part_no,product,memo", (q) => q.in("id", rows.map((r) => r.doc_id)))).forEach((d) => { info[d.id] = d; });
+  (await docRows("id,kind,part_no,product,memo,dims,dims_ok", (q) => q.in("id", rows.map((r) => r.doc_id)))).forEach((d) => { info[d.id] = d; });
   return ids.map((id) => rows.find((r) => r.id === id)).filter(Boolean).map((v: any, i) => ({
     key: "D" + (i + 1), 파일ID: String(v.doc_id), 파일명: String(v.name), 형식: String(info[v.doc_id]?.kind || ""), 품번: String(info[v.doc_id]?.part_no || ""), 품명: String(info[v.doc_id]?.product || ""), 메모: String(info[v.doc_id]?.memo || ""),
+    ...(info[v.doc_id]?.dims ? { 주요치수: dimsList(info[v.doc_id].dims), 치수확인: info[v.doc_id].dims_ok ? "카일님 확인" : "Lobby 판독(확인 전)" } : {}),
     조각: v.seq, 위치: String(v.loc || ""), 본문: String(v.body).slice(0, 2400),
   }));
 }
@@ -906,7 +932,8 @@ async function actDocs() {
   const links = await docLinks(rows.filter((r) => r.status !== "올리는 중").map((r) => r.id));
   return {
     docs: rows.map((r) => ({ 파일ID: r.id, 파일명: r.name, 형식: r.kind, 크기: r.size, 수정일시: r.uploaded_at, 조각수: r.chunks || 0,
-      읽은일시: r.read_at, 상태: r.status, 링크: links[r.id] || "", 품번: r.part_no || "", 품명: r.product || "", 메모: r.memo || "" })),
+      읽은일시: r.read_at, 상태: r.status, 링크: links[r.id] || "", 품번: r.part_no || "", 품명: r.product || "", 메모: r.memo || "",
+      주요치수: dimsList(r.dims), 치수확인: r.dims_ok || "" })),
     maxMb: CONFIG.UPLOAD_MAX_MB,
   };
 }
