@@ -56,17 +56,19 @@ jobs:
           # 값은 보여 주지 않고 모양과 권한만 확인해 무엇이 틀렸는지 알려 준다
           case "$token" in sbp_*) ;; *) echo "::warning::SUPABASE_ACCESS_TOKEN이 'sbp_'로 시작하지 않습니다 (길이 ${#token}). Access Tokens에서 만든 토큰이 맞는지 확인해 주세요." ;; esac
           echo "$ref" | grep -Eq '^[a-z0-9]{20}$' || echo "::warning::SUPABASE_PROJECT_REF가 프로젝트 ID 모양(영문 소문자·숫자 20자)이 아닙니다 (길이 ${#ref})."
-          code=$(curl -s -o projects.json -w '%{http_code}' -H "Authorization: Bearer $token" https://api.supabase.com/v1/projects)
+          # 프로젝트 하나만 허용한 새 방식 토큰도 통과하도록, 전체 목록이 아니라 이 프로젝트를 직접 읽어 본다
+          code=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" "https://api.supabase.com/v1/projects/$ref")
+          echo "토큰 모양: sbp_ 시작=$(case "$token" in sbp_*) echo 예;; *) echo 아니오;; esac), 길이=${#token} (보통 44) · 프로젝트 읽기 HTTP $code"
           if [ "$code" = 401 ]; then
-            echo "::error::Supabase가 토큰을 받아 주지 않습니다 (HTTP 401). 토큰이 만료됐거나 삭제됐거나 잘못 복사됐습니다. Access Tokens에서 새 토큰을 만들어 SUPABASE_ACCESS_TOKEN을 바꿔 주세요."; exit 1
+            echo "::error::Supabase가 토큰을 받아 주지 않습니다 (HTTP 401). 토큰이 만료됐거나 삭제됐거나 잘못 복사됐습니다. 길이가 44가 아니면 복사가 잘못된 것입니다. Access Tokens에서 새 토큰을 만들어 SUPABASE_ACCESS_TOKEN을 바꿔 주세요."; exit 1
+          elif [ "$code" = 403 ]; then
+            echo "::error::토큰은 맞지만 이 프로젝트를 읽을 권한이 없습니다 (HTTP 403). 토큰의 대상 프로젝트와 Project 권한(Read)을 확인해 주세요."; exit 1
+          elif [ "$code" = 404 ]; then
+            echo "::error::SUPABASE_PROJECT_REF의 프로젝트를 찾지 못했습니다 (HTTP 404). 프로젝트 ID를 확인해 주세요."; exit 1
           elif [ "$code" != 200 ]; then
-            echo "::error::토큰으로 Supabase 프로젝트 목록을 읽지 못했습니다 (HTTP $code). 토큰 권한이 부족합니다. Access Tokens에서 전체 권한 토큰을 새로 만들어 등록해 주세요."; exit 1
-          elif ! python3 -c 'import json,sys; sys.exit(0 if any(p.get("id")==sys.argv[1] or p.get("ref")==sys.argv[1] for p in json.load(open("projects.json"))) else 1)' "$ref"; then
-            echo "::error::토큰은 맞지만 SUPABASE_PROJECT_REF와 같은 프로젝트가 이 토큰으로 보이지 않습니다. 프로젝트 ID 또는 토큰의 대상 프로젝트를 확인해 주세요."; exit 1
-          else
-            echo "토큰과 프로젝트 ID 확인 완료"
+            echo "::error::토큰 점검 실패 (HTTP $code)."; exit 1
           fi
-          rm -f projects.json
+          echo "토큰과 프로젝트 ID 확인 완료"
       - name: 표(DB) 업데이트
         if: steps.check.outputs.skip != '1'
         run: python3 .github/scripts/db_migrate.py
