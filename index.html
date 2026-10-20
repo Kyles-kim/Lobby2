@@ -257,7 +257,21 @@ body.speaking.beat .fx .ln{animation-name:flashB}
 .up-item .form{grid-template-columns:1fr 1.4fr}
 .up-item .fld input.guess{border-color:rgba(47,128,237,.55);background:rgba(47,128,237,.08)}
 .memo-edit{display:grid;gap:8px;padding:10px;border-radius:10px;background:rgba(47,128,237,.06);border:1px solid rgba(47,128,237,.5)}
-.memo-edit .form{grid-template-columns:1fr 1.4fr}
+.memo-edit .form{grid-template-columns:minmax(0,1fr) minmax(0,1.4fr)}
+.memo-edit,.dims-edit{min-width:0}
+.memo-edit input{min-width:0;width:100%}
+.chip.z{color:#0B5E52;border-color:rgba(16,140,120,.45);background:rgba(16,170,140,.10);font-family:var(--mono);font-size:11.5px}
+.chip.warn{color:#8A4B00;border-color:rgba(214,130,20,.6);background:rgba(255,180,60,.16);font-weight:700}
+.dims-edit{display:grid;gap:6px;padding:10px;border-radius:10px;background:rgba(16,170,140,.07);border:1px solid rgba(16,140,120,.4)}
+.dims-edit.unchecked{border:1.5px solid rgba(214,130,20,.7);background:rgba(255,180,60,.10)}
+.dims-edit .dims-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;font-weight:700}
+.dims-edit .dims-head span{white-space:nowrap}
+.dims-edit .dims-head small{font-weight:400;color:var(--muted)}
+.dims-row{display:grid;grid-template-columns:44px minmax(0,1fr) 34px;gap:6px;align-items:center}
+.dims-row span{font-size:12px;color:var(--muted)}
+.dims-row input{font-family:var(--mono)}
+.dims-row .btn{height:34px;padding:0}
+.up-dims-note{font-size:12px;color:var(--muted);padding:8px 10px;border-radius:8px;border:1px dashed rgba(16,140,120,.45);background:rgba(16,170,140,.06)}
 .doc-thumb{display:block;border-radius:10px;overflow:hidden;background:#F5F2EA;border:1px solid var(--line)}
 .doc-thumb img{display:block;width:100%;max-height:180px;object-fit:contain}
 .todos{gap:6px;background:linear-gradient(165deg,rgba(25,200,235,.18),rgba(47,128,237,.05)),var(--surface);border:1.5px solid rgba(47,128,237,.55)}
@@ -462,7 +476,8 @@ body.speaking.beat .fx .ln{animation-name:flashB}
         <h3>회사 문서</h3>
         <p>승인원·도면·작업표준서·제품사진을 올려 두면 Lobby가 바로 읽어 두고, 물으면 치수·적용 원료를 찾아 답하고 도면·사진을 보여 줍니다.</p>
         <div class="kinds"><span class="chip d">PDF</span><span class="chip d">워드(docx)</span><span class="chip d">엑셀</span><span class="chip d">파워포인트(pptx)</span><span class="chip d">사진(도면·제품)</span><span class="chip d">텍스트</span></div>
-        <p>파일을 고르면 올리기 전에 파일마다 <b>품번</b>(예: CR-747)·<b>제품명/품명</b>(예: 리모컨 하부 케이스)·<b>메모</b>(예: 제품사진)를 적을 수 있습니다. Lobby가 파일 이름을 보고 미리 채워 두니 확인만 해 주세요. 파일 이름이 IMG_1234.jpg여도 이 말로 물으면 찾아 드립니다.</p>
+        <p>파일을 고르면 올리기 전에 파일마다 <b>품번</b>(예: CR-747)·<b>제품명/품명</b>(예: 리모컨 하부 케이스)를 적을 수 있습니다. Lobby가 파일 이름을 보고 미리 채워 두니 확인만 해 주세요. 파일 이름이 IMG_1234.jpg여도 이 말로 물으면 찾아 드립니다.
+          도면은 올린 뒤 Lobby가 읽은 <b>주요 치수</b>(예: 전장: 358.10 (±0.2))를 보여 드리니, 맞으면 그대로·틀리면 고쳐서 저장해 주세요. 확인한 치수는 물을 때 정답으로 씁니다.</p>
         <input type="file" id="docFile" multiple hidden accept=".pdf,.docx,.xlsx,.xls,.xlsm,.pptx,.txt,.csv,.md,image/jpeg,image/png,image/gif,image/webp">
         <div class="btns">
           <button class="btn" id="btnReindex">실패한 문서 다시 읽기</button>
@@ -931,7 +946,10 @@ async function saveCard(cid) {
     } else if (box) box.innerHTML = `<div class="card saved">✓ 저장했습니다 · ${r.ids.length}건</div>`;
     renderRecent(r.recent);
     const al = (r.alarms || [])[0];
-    toast(`저장했습니다 (${r.ids.length}건)` + (al ? ` · 🔔 ${alarmAtWords(al.알림시각)}에 알려 드릴게요` : ''));
+    const miss = (r.alarmMissed || [])[0];
+    if (miss) toast(`저장했지만 ‘${miss.제목}’은(는) ${miss.이유} 알림을 걸지 못했습니다. 수정 탭에서 날짜·시각을 고쳐 주세요`, true);
+    else toast(`저장했습니다 (${r.ids.length}건)` + (al ? ` · 🔔 ${alarmAtWords(al.알림시각)}에 알려 드릴게요` : ''));
+    if (al) Push.nudge();
     refreshCategories(); loadTodos(); Alarm.load();
     return r;
   } catch (e) { toast(e.message, true); if (btn) btn.disabled = false; return false; }
@@ -1321,17 +1339,18 @@ function applyDocs(r) {
     <div class="card doc">
       <div class="row"><span class="chip d">${esc(d.형식)}</span><span class="name ttl">${esc(d.파일명)}</span></div>
       ${d.품번 || d.품명 || d.메모 ? `<div class="row">${d.품번 ? `<span class="chip p">${esc(d.품번)}</span>` : ''}${d.품명 ? `<span class="chip c">${esc(d.품명)}</span>` : ''}${d.메모 ? `<span class="chip m">${esc(d.메모)}</span>` : ''}</div>` : ''}
+      ${dimsOf(d).length && S.memoEdit !== d.파일ID ? `<div class="row">${dimsOf(d).map(x => `<span class="chip z">${esc(x)}</span>`).join('')}${d.치수확인 ? '' : '<span class="chip warn">치수 확인 필요</span>'}</div>` : ''}
       ${S.memoEdit === d.파일ID ? `<div class="memo-edit"><div class="form">
           <label class="fld"><span>품번</span><input id="mePart" maxlength="40" autocomplete="off" value="${esc(d.품번 || '')}" placeholder="예) CR-747"></label>
-          <label class="fld"><span>제품명·품명</span><input id="meProduct" maxlength="60" autocomplete="off" value="${esc(d.품명 || '')}" placeholder="예) 리모컨 하부 케이스"></label>
-          <label class="fld wide"><span>메모</span><input id="meMemo" maxlength="100" autocomplete="off" value="${esc(d.메모 || '')}" placeholder="예) 제품사진 · 도면 Rev.C"></label></div>
-        <div class="btns"><button class="btn sm ghost" data-memo-cancel>취소</button><button class="btn sm pri" data-memo-save="${i}">저장</button></div></div>` : ''}
+          <label class="fld"><span>제품명·품명</span><input id="meProduct" maxlength="60" autocomplete="off" value="${esc(d.품명 || '')}" placeholder="예) 리모컨 하부 케이스"></label></div>
+        ${dimsEditHTML(d)}
+        <div class="btns"><button class="btn sm ghost" data-memo-cancel>취소</button><button class="btn sm pri" data-memo-save="${i}">${dimsOf(d).length && !d.치수확인 ? '확인 · 저장' : '저장'}</button></div></div>` : ''}
       ${d.형식 === '이미지' && d.링크 ? `<a class="doc-thumb" href="${esc(d.링크)}" target="_blank" rel="noopener"><img src="${esc(d.링크)}" alt="${esc(d.파일명)}" loading="lazy"></a>` : ''}
       <div class="meta">${d.크기 ? fileSize(d.크기) + ' · ' : ''}조각 ${d.조각수} · 올림 ${esc(d.수정일시 || '-')}</div>
       ${d.상태 !== '완료' ? `<div class="err-txt">${esc(d.상태)}</div>` : ''}
       <div class="btns">
         <button class="btn sm ghost" data-del-doc="${i}">삭제</button>
-        <button class="btn sm ghost" data-memo-doc="${i}">${d.품번 || d.품명 || d.메모 ? '품번·품명 수정' : '품번·품명'}</button>
+        <button class="btn sm ghost" data-memo-doc="${i}">${dimsOf(d).length && !d.치수확인 ? '치수 확인' : d.품번 || d.품명 || dimsOf(d).length ? '품번·치수 수정' : '품번·품명·치수'}</button>
         ${d.링크 ? `<a class="btn sm" href="${esc(d.링크)}" target="_blank" rel="noopener">열기</a>` : ''}
         ${d.조각수 > 0 ? `<button class="btn sm" data-read-doc="${i}">${S.reading === d.파일ID ? '읽기 멈춤' : '읽어 주기'}</button><button class="btn sm pri" data-ask-doc="${i}">이 문서에 묻기</button>` : ''}
       </div>
@@ -1361,22 +1380,72 @@ async function shrinkImage(f) {
     return blob ? new File([blob], f.name.replace(/\.(png|webp|jpe?g)$/i, '') + '.jpg', { type: 'image/jpeg' }) : f;
   } catch { return f; }
 }
-/** 문서 카드에서 품번·메모 고치기 (카드 안에 입력칸이 열린다) */
+/* 주요 치수: 도면을 읽을 때 Lobby가 전장·전폭 등을 채우고, 카일님이 확인·수정한다. 확인한 값은 물을 때 정답으로 쓴다 */
+const dimsOf = d => Array.isArray(d.주요치수) ? d.주요치수 : [];
+const DIM_HINTS = ['예) 전장: 358.10 (±0.2)', '예) 전폭: 258.55 (±0.15)', '예) 전고: 45.0 (±0.1)'];
+function dimsEditHTML(d) {
+  const rows = S.dimsDraft || [], has = dimsOf(d).length;
+  const note = has && !d.치수확인 ? 'Lobby가 도면에서 읽은 값입니다. 맞으면 그대로, 틀린 곳만 고쳐서 저장해 주세요'
+    : d.치수확인 ? `✓ 카일님 확인 ${esc(String(d.치수확인).slice(5))}` : '전장·전폭 등을 적어 두면 물을 때 이 값으로 답합니다';
+  const canRead = !has && d.조각수 > 0 && (d.형식 === 'PDF' || d.형식 === '이미지');
+  return `<div class="dims-edit${has && !d.치수확인 ? ' unchecked' : ''}">
+    <div class="dims-head"><span>📐 주요 치수</span><small>${note}</small></div>
+    ${rows.map((v, k) => `<div class="dims-row"><span>치수${k + 1}</span>
+      <input data-dim="${k}" maxlength="60" autocomplete="off" value="${esc(v)}" placeholder="${esc(DIM_HINTS[Math.min(k, 2)])}">
+      <button class="btn sm ghost" data-dim-del="${k}" aria-label="치수${k + 1} 지우기">✕</button></div>`).join('')}
+    <div class="btns" style="justify-content:flex-start">
+      ${rows.length < 10 ? '<button class="btn sm ghost" data-dim-add>+ 치수 추가</button>' : ''}
+      ${canRead ? `<button class="btn sm" data-dim-read="${esc(d.파일ID)}">도면에서 읽어 오기</button>` : ''}</div></div>`;
+}
+function collectDims() {
+  document.querySelectorAll('[data-dim]').forEach(el => { S.dimsDraft[Number(el.dataset.dim)] = el.value; });
+}
+/** 입력칸을 다시 그릴 때 품번·품명에 적던 값이 사라지지 않게 둔다 */
+function redrawDocEdit() {
+  const part = $('#mePart')?.value, product = $('#meProduct')?.value;
+  applyDocs({ docs: S.docs });
+  if (part != null) $('#mePart').value = part;
+  if (product != null) $('#meProduct').value = product;
+}
+/** 문서 카드에서 품번·품명·주요 치수 고치기 (카드 안에 입력칸이 열린다) */
 function editDocMemo(i) {
   const d = S.docs[i]; if (!d) return;
   S.memoEdit = S.memoEdit === d.파일ID ? null : d.파일ID;
+  S.dimsDraft = dimsOf(d).length ? [...dimsOf(d)] : ['', ''];
   applyDocs({ docs: S.docs });
-  if (S.memoEdit) setTimeout(() => $('#mePart')?.focus(), 30);
+  if (S.memoEdit) setTimeout(() => { const el = dimsOf(d).length ? document.querySelector('[data-dim="0"]') : $('#mePart'); el?.focus(); el?.closest('.card')?.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 30);
+}
+function addDim() { collectDims(); S.dimsDraft.push(''); redrawDocEdit(); document.querySelector(`[data-dim="${S.dimsDraft.length - 1}"]`)?.focus(); }
+function delDim(k) { collectDims(); S.dimsDraft.splice(k, 1); if (!S.dimsDraft.length) S.dimsDraft.push(''); redrawDocEdit(); }
+/** 예전에 올린 도면: 다시 읽어서 주요 치수를 채운다 */
+async function readDims(id, btn) {
+  btn.disabled = true; btn.textContent = 'Lobby가 읽는 중…';
+  try {
+    const r = await api('indexDoc', { id });
+    S.docs = r.docs || S.docs;
+    const d = S.docs.find(x => x.파일ID === id);
+    if (d && dimsOf(d).length) { S.dimsDraft = [...dimsOf(d)]; toast('읽은 주요 치수를 확인해 주세요'); }
+    else toast('도면에서 주요 치수를 찾지 못했습니다. 직접 적어 주세요', true);
+    redrawDocEdit();
+  } catch (e) { toast(e.message, true); btn.disabled = false; btn.textContent = '도면에서 읽어 오기'; }
 }
 async function saveDocMemo(i, btn) {
   const d = S.docs[i]; if (!d) return;
-  const part = $('#mePart').value.trim(), product = $('#meProduct').value.trim(), memo = $('#meMemo').value.trim();
+  collectDims();
+  const part = $('#mePart').value.trim(), product = $('#meProduct').value.trim();
+  const dims = S.dimsDraft.map(v => v.trim()).filter(Boolean);
   btn.disabled = true;
   try {
     S.memoEdit = null;
-    applyDocs(await api('docMemo', { id: d.파일ID, part, product, memo }));
-    toast(part || product || memo ? '품번·품명·메모를 저장했습니다' : '품번·품명·메모를 지웠습니다');
+    applyDocs(await api('docMemo', { id: d.파일ID, part, product, dims }));
+    toast(dims.length ? `품번·품명과 주요 치수 ${dims.length}개를 저장했습니다` : '품번·품명을 저장했습니다');
+    if (S.lastUploaded) setTimeout(() => nextDimsCheck(S.lastUploaded), 1200);   // 함께 올린 다른 도면도 이어서 확인
   } catch (e) { S.memoEdit = d.파일ID; toast(e.message, true); btn.disabled = false; }
+}
+/** 올린 뒤: 아직 확인하지 않은 주요 치수가 있는 문서의 입력칸을 열어 준다 (방금 올린 문서부터) */
+function nextDimsCheck(ids) {
+  const todo = S.docs.findIndex(d => dimsOf(d).length && !d.치수확인 && (!ids || ids.includes(d.파일ID)));
+  if (todo >= 0) { editDocMemo(todo); if (ids) toast('Lobby가 읽은 주요 치수를 확인해 주세요'); }
 }
 
 /* 올리기 전 확인: 고른 파일마다 품번·제품명(품명)·메모를 적는다 (파일 이름을 보고 짐작해 미리 채움) */
@@ -1433,7 +1502,6 @@ function renderUploadPlan() {
     ${list.length > 1 ? `<div class="up-all">
       <label class="fld"><span>품번 (모든 파일에)</span><input id="upAllPart" maxlength="40" autocomplete="off" placeholder="예) CR-747"></label>
       <label class="fld"><span>제품명·품명 (모든 파일에)</span><input id="upAllProduct" maxlength="60" autocomplete="off" placeholder="예) 리모컨 하부 케이스"></label>
-      <label class="fld wide"><span>메모 (모든 파일에)</span><input id="upAllMemo" maxlength="100" autocomplete="off" placeholder="예) 제품사진"></label>
       <button class="btn sm" id="upApplyAll">모두에 적용</button></div>` : ''}
     ${list.map((it, i) => `<div class="up-item">
       <div class="up-name"><span class="chip d">${esc(kindLabel(it.f.name))}</span><b>${esc(it.f.name)}</b><small>${fileSize(it.f.size)}</small>
@@ -1441,7 +1509,7 @@ function renderUploadPlan() {
       <div class="form">
         <label class="fld"><span>품번</span><input data-up-part="${i}" class="${g(it, 'part')}" maxlength="40" autocomplete="off" value="${esc(it.part)}" placeholder="예) CR-747"></label>
         <label class="fld"><span>제품명·품명</span><input data-up-product="${i}" class="${g(it, 'product')}" maxlength="60" autocomplete="off" value="${esc(it.product)}" placeholder="예) 리모컨 하부 케이스"></label>
-        <label class="fld wide"><span>메모</span><input data-up-memo="${i}" class="${g(it, 'memo')}" maxlength="100" autocomplete="off" value="${esc(it.memo)}" placeholder="예) 제품사진 · 도면 Rev.C"></label>
+        <div class="fld wide up-dims-note">📐 <b>주요 치수</b> (전장·전폭 …)는 올린 뒤 Lobby가 도면에서 읽어 채워 드립니다. 확인 창이 열리면 맞는지 보고 저장해 주세요.</div>
       </div></div>`).join('')}
     <div class="btns"><button class="btn" id="upCancel">취소</button><button class="btn pri" id="upGo">올리기 (${list.length}개)</button></div>`;
   box.hidden = false;
@@ -1450,9 +1518,9 @@ $('#upPlan').addEventListener('input', e => { if (e.target.classList.contains('g
 $('#upPlan').addEventListener('click', e => {
   const t = e.target.closest('button'); if (!t) return;
   if (t.id === 'upApplyAll') {
-    const p = $('#upAllPart').value.trim(), pr = $('#upAllProduct').value.trim(), m = $('#upAllMemo').value.trim();
+    const p = $('#upAllPart').value.trim(), pr = $('#upAllProduct').value.trim();
     collectUploadPlan();
-    S.upPlan.forEach(it => { if (p) it.part = p; if (pr) it.product = pr; if (m) it.memo = m; });
+    S.upPlan.forEach(it => { if (p) it.part = p; if (pr) it.product = pr; });
     renderUploadPlan(); toast('모든 파일에 적용했습니다');
   } else if (t.dataset.upDrop != null) {
     collectUploadPlan(); S.upPlan.splice(Number(t.dataset.upDrop), 1); renderUploadPlan();
@@ -1470,6 +1538,7 @@ async function uploadDocs(items) {
   prog.innerHTML = list.map((f, i) => `<div class="up-line" data-up="${i}"><b>${esc(f.name)}</b><span>대기</span></div>`).join('');
   const mark = (i, t, cls) => { const el = prog.querySelector(`[data-up="${i}"]`); el.className = 'up-line' + (cls ? ' ' + cls : ''); el.lastChild.textContent = t; };
   let done = 0;
+  const ids = [];
   for (let i = 0; i < list.length; i++) {
     let f = list[i];
     try {
@@ -1483,6 +1552,7 @@ async function uploadDocs(items) {
       }
       mark(i, 'Lobby가 읽는 중…');
       const r = await api('indexDoc', { id: u.id, name: f.name, size: f.size });
+      ids.push(u.id);
       applyDocs(r);
       if (r.status === '완료') { mark(i, '✓ 완료', 'ok'); done++; } else mark(i, r.status, 'bad');
     } catch (e) { mark(i, e.message, 'bad'); }
@@ -1490,6 +1560,8 @@ async function uploadDocs(items) {
   b.disabled = false; $('#docFile').value = '';
   toast(`${done}개 문서를 읽어 두었습니다` + (done < list.length ? ` · 확인 필요 ${list.length - done}개` : ''), done < list.length);
   if (done === list.length) setTimeout(() => { prog.innerHTML = ''; }, 4000);
+  S.lastUploaded = ids;
+  setTimeout(() => nextDimsCheck(ids), 1500);        // 도면이면 Lobby가 읽은 전장·전폭을 바로 확인하게 연다
 }
 async function deleteDoc(i) {
   const d = S.docs[i]; if (!d) return;
@@ -1809,7 +1881,7 @@ const Alarm = {
     try {
       const r = await api('alarms');
       this.list = r.alarms || [];
-      if (r.needsUpdate && !this.warned) { this.warned = true; toast('일정 알림을 쓰려면 서버 표 업데이트(alarms.sql)가 필요합니다', true); }
+      if (r.needsUpdate && !this.warned) { this.warned = true; toast('일정 알림을 쓰려면 서버 표 업데이트가 필요합니다. GitHub Actions에서 "Lobby 서버 배포"를 실행하거나, Supabase SQL Editor에서 alarms.sql을 실행해 주세요.', true); }
       renderAlarms(); this.check();
     } catch {}
   },
@@ -1932,6 +2004,19 @@ const Push = {
     if (Notification.permission === 'denied') return ['알림이 차단되어 있습니다. 휴대폰 설정에서 Lobby2 알림을 허용해 주세요', 'bad', false];
     const s = await this.sub();
     return s && Notification.permission === 'granted' ? ['✓ 이 기기에서 휴대폰 알림을 받고 있습니다', 'on', true] : ['꺼져 있음 — 켜 두면 앱을 닫아도 알림이 옵니다', '', false];
+  },
+  /** 알림을 걸었는데 이 기기에 휴대폰 알림이 꺼져 있으면 켜도록 권한다 (사흘에 한 번까지) */
+  async nudge() {
+    if (isDemo() || !this.ok()) return;
+    const [, cls, on] = await this.state();
+    if (on || cls === 'bad' || Date.now() - store.get('pushNudge', 0) < 3 * 86400000) return;
+    store.set('pushNudge', Date.now());
+    await sleep(2600);                               // 저장 안내를 먼저 읽을 수 있게
+    if (confirm('휴대폰 알림이 꺼져 있어, 앱을 닫거나 화면이 꺼지면 알림이 울리지 않습니다.\n설정에서 ‘휴대폰 알림 받기’를 켤까요?')) {
+      openSettings();
+      setTimeout(() => { $('#sPush').scrollIntoView({ block: 'center', behavior: 'smooth' }); $('#sPush').focus(); }, 200);
+      toast('‘휴대폰 알림 받기’를 눌러 알림을 허용해 주세요');
+    }
   },
   async render() {
     const [txt, cls, on] = await this.state();
@@ -2137,6 +2222,9 @@ document.addEventListener('click', e => {
   if (d.memoDoc != null) return void editDocMemo(Number(d.memoDoc));
   if (d.memoSave != null) return void saveDocMemo(Number(d.memoSave), t);
   if (d.memoCancel != null) { S.memoEdit = null; return void applyDocs({ docs: S.docs }); }
+  if (d.dimAdd != null) return void addDim();
+  if (d.dimDel != null) return void delDim(Number(d.dimDel));
+  if (d.dimRead != null) return void readDims(d.dimRead, t);
   if (d.askDoc != null) {
     const doc = S.docs[Number(d.askDoc)]; if (!doc) return;
     show('talk'); $('#txtTalk').value = `‘${doc.파일명}’에서 `; autoGrow($('#txtTalk')); $('#txtTalk').focus(); return;
@@ -2357,10 +2445,16 @@ const Demo = (() => {
       if (action === 'indexDoc') {
         const ext = (d.name || '').split('.').pop().toLowerCase();
         const kind = { pdf: 'PDF', docx: '워드', xlsx: '엑셀', xls: '엑셀', pptx: '파워포인트', txt: '텍스트', csv: '텍스트', md: '텍스트', jpg: '이미지', jpeg: '이미지', png: '이미지' }[ext] || '미지원';
-        docs.push({ ...lastMeta, 파일ID: d.id, 파일명: d.name, 형식: kind, 크기: d.size, 수정일시: now(), 조각수: kind === '미지원' ? 0 : 3, 읽은일시: now(), 상태: kind === '미지원' ? '미지원(' + ext + ')' : '완료', 링크: '' });
+        const dwg = /도면/.test(d.name + (lastMeta.메모 || ''));    // 데모: 도면이면 읽은 척 주요 치수를 채워 확인 창을 보여 준다
+        docs.push({ ...lastMeta, 파일ID: d.id, 파일명: d.name, 형식: kind, 크기: d.size, 수정일시: now(), 조각수: kind === '미지원' ? 0 : 3, 읽은일시: now(), 상태: kind === '미지원' ? '미지원(' + ext + ')' : '완료', 링크: '',
+          주요치수: dwg ? ['전장: 358.10 (±0.2)', '전폭: 258.55 (±0.15)'] : [], 치수확인: '' });
         return { status: kind === '미지원' ? '미지원(' + ext + ')' : '완료', docs };
       }
-      if (action === 'docMemo') { const x = docs.find(k => k.파일ID === d.id); if (x) { x.품번 = String(d.part || '').toUpperCase(); x.품명 = d.product || ''; x.메모 = d.memo; } return { docs }; }
+      if (action === 'docMemo') {
+        const x = docs.find(k => k.파일ID === d.id);
+        if (x) { x.품번 = String(d.part || '').toUpperCase(); x.품명 = d.product || ''; if (d.memo !== undefined) x.메모 = d.memo; if (d.dims) { x.주요치수 = d.dims; x.치수확인 = d.dims.length ? now() : ''; } }
+        return { docs };
+      }
       if (action === 'deleteDoc') { const i = docs.findIndex(x => x.파일ID === d.id); if (i >= 0) docs.splice(i, 1); return { docs }; }
       if (action === 'readDoc') return { text: d.from > 1 ? '' : '데모 문서입니다. 실제 앱에서는 올려 둔 문서의 본문을 처음부터 읽어 드립니다. 외관 검사 기준. 흑점, 흐름자국, 웰드라인이 육안으로 확인되지 않을 것.', next: 0 };
       if (action === 'reports') return { reports, tasks };

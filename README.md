@@ -55,10 +55,12 @@ API 키·접속 암호는 Supabase의 비밀 값에만 저장하며, 이 저장�
 
 ## 서버 자동 배포 (선택)
 
-앱 화면은 저장소에 올리면 바로 바뀌지만, 서버(Edge Function)는 따로 배포해야 합니다. 서버를 다시 배포하지 않으면 새 기능을 쓸 때 "Lobby 서버가 앱보다 옛 버전" 안내가 뜹니다.
-GitHub 저장소 > Settings > Secrets and variables > Actions에 아래 두 값을 등록해 두면, main에 서버 코드가 바뀔 때마다 `.github/workflows/deploy-api.yml`이 자동으로 배포합니다 (Actions 탭에서 "Run workflow"로 바로 실행도 가능).
+앱 화면은 저장소에 올리면 바로 바뀌지만, 서버(Edge Function)와 표(DB)는 따로 바꿔야 합니다. 그대로 두면 새 기능을 쓸 때 "Lobby 서버가 앱보다 옛 버전", "표 업데이트가 필요합니다" 안내가 뜹니다.
+GitHub 저장소 > Settings > Secrets and variables > Actions에 아래 두 값을 등록해 두면, main에 서버 코드나 표 SQL이 바뀔 때마다 `.github/workflows/deploy-api.yml`이 자동으로
+1) `supabase/migrations/`에서 아직 실행하지 않은 SQL을 날짜 순서대로 실행하고 (실행한 파일은 DB의 `schema_migrations` 표에 기록)
+2) 서버를 다시 배포합니다. Actions 탭에서 "Run workflow"로 바로 실행할 수도 있습니다.
 
-- `SUPABASE_ACCESS_TOKEN`: supabase.com > Account > Access Tokens에서 만든 토큰
+- `SUPABASE_ACCESS_TOKEN`: supabase.com > Account > Access Tokens에서 만든 토큰 (표 업데이트까지 하려면 DB 권한이 있는 전체 권한 토큰)
 - `SUPABASE_PROJECT_REF`: 서버 주소 `https://<PROJECT_REF>.supabase.co`의 `<PROJECT_REF>`
 
-표(DB) 변경은 자동으로 하지 않으니, 새 `supabase/migrations/` 파일이 생기면 SQL Editor에서 직접 실행해 주세요.
+새 SQL 파일은 SQL Editor로 직접 실행하는 경우도 있으므로 여러 번 실행해도 안전하게(`if not exists` 등) 작성합니다.
