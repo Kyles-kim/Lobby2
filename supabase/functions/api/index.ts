@@ -20,6 +20,8 @@ import { decodeBase64, encodeBase64 } from "jsr:@std/encoding/base64";
 // ───────────────────────── 설정 ─────────────────────────
 const CONFIG = {
   MODEL: Deno.env.get("LOBBY_MODEL") || "claude-sonnet-4-5",
+  // 도면·사진·스캔 PDF 판독용: 고해상도로 보는 모델(긴 변 2576px까지)이라 작은 치수 글자를 더 정확히 읽는다. 올릴 때 한 번만 쓴다
+  READ_MODEL: Deno.env.get("LOBBY_READ_MODEL") || "claude-opus-5-5",
   TRASH_DAYS: 30,               // 삭제 후 복구 가능 기간(일)
   LEARN_SCAN: 800,              // 입력 습관을 배울 때 살펴볼 최근 기록 수
   LEARN_EXAMPLES: 6,            // 새 입력 정리 시 참고용으로 보여 줄 비슷한 과거 기록 수
@@ -781,8 +783,8 @@ const TRANSCRIBE = '글자를 빠짐없이 옮겨 적어라. 표는 한 행을 "
 const DRAWING = [
   "이 도면을 보고 아래 순서로 빠짐없이 적어라. 보이는 값만 적고 추정하지 않는다. 읽기 어려운 값은 (판독 불가)로 적는다.",
   "■ 표제란: 도번, 품번, 품명, 금형번호, 재질·적용 원료(그레이드 포함), 색상, 척도, 단위, 리비전, 작성·승인일 등 보이는 항목을 \"항목: 값\"으로 한 줄씩",
-  "■ 주요 치수: 제품 외형 전체 치수를 한 줄에 하나씩 \"전장: 358.10 (±0.2)\", \"전폭: 258.55 (±0.15)\", \"전고: 45.0 (+0.1/-0.05)\" 형식으로 (전장=가장 긴 외형 치수, 전폭=그와 직각인 외형 치수, 전고=높이·두께). 공차가 따로 없으면 일반공차를 괄호에, 그것도 없으면 괄호 없이. 도면에 없는 항목은 적지 않는다",
-  "■ 치수: 한 줄에 하나씩 \"뷰·부분 - 치수 이름: 값 공차\" (예: \"정면도 - 전장: 142.0 ±0.05 mm\", \"측면도 - 체결 구멍 지름: Ø3.2 +0.1/0\"). Ø·R·C·±·기하공차 기호와 단위는 그대로",
+  "■ 주요 치수: 제품 외형 전체 치수를 한 줄에 하나씩 \"전장: <값> (<공차>)\", \"전폭: <값> (<공차>)\", \"전고: <값> (<공차>)\" 형식으로 (전장=가장 긴 외형 치수, 전폭=그와 직각인 외형 치수, 전고=높이·두께). 도면에 적힌 숫자를 소수점 자리까지 그대로 옮기고 반올림하지 않는다. 공차가 따로 없으면 일반공차를 괄호에, 그것도 없으면 괄호 없이. 도면에서 확실히 읽히지 않는 항목은 적지 않는다",
+  "■ 치수: 한 줄에 하나씩 \"뷰·부분 - 치수 이름: 값 공차\" (형식 예: \"정면도 - 전장: <값> ±<공차> mm\", \"측면도 - 체결 구멍 지름: Ø<값> +<위>/<아래>\"). 숫자는 도면에 적힌 그대로, Ø·R·C·±·기하공차 기호와 단위도 그대로",
   "■ 일반공차·주석·표면처리·검사 기준: 원문 그대로",
   "■ 형상: 어떤 부품인지, 형태와 주요 특징을 두세 문장으로",
   "■ 그 밖의 글자: 위에 들어가지 않은 표·글자를 원문 그대로",
@@ -804,7 +806,8 @@ async function pdfSegmentsByClaude(bytes: Uint8Array, drawing = false) {
     { type: "document", source: { type: "base64", media_type: "application/pdf", data: encodeBase64(bytes) } },
     { type: "text", text: drawing ? DRAWING + "\n각 페이지 시작에 [p.번호]를 붙인다." : "이 PDF의 " + TRANSCRIBE + " 각 페이지 시작에 [p.번호]를 붙인다." },
   ];
-  const r = await callClaudeFull("너는 문서 전사 도구다. 원문을 정확히 옮겨 적는다.", content, 16000);
+  const sys = "너는 문서 전사 도구다. 원문을 정확히 옮겨 적는다.";
+  const r = drawing ? await readClaude(sys, content, 16000) : await callClaudeFull(sys, content, 16000);   // 도면은 작은 치수 글자까지 고해상도로
   const parts = r.text.split(/\[p\.(\d+)\]/);
   const segs: Seg[] = [];
   const tag = drawing ? "[도면] " : "";             // "도면"으로 물어도 찾을 수 있게 앞에 붙인다
@@ -826,7 +829,7 @@ async function imageSegmentsByClaude(bytes: Uint8Array, name: string) {
       "제품사진·기타면 이어서 \"설명:\" 줄에 무엇인지, 형태·색상·재질감·크기감·특징을 3~5문장으로 적고, 보이는 품번·각인·라벨 글자가 있으면 \"글자:\" 줄에 그대로 적는다.",
     ].join("\n") },
   ];
-  const r = await callClaudeFull("너는 문서·도면·제품사진 판독 도구다. 보이는 것만 정확히 적는다.", content, 8000);
+  const r = await readClaude("너는 문서·도면·제품사진 판독 도구다. 보이는 것만 정확히 적는다.", content, 8000);
   return { segs: [{ loc: "사진", text: "[사진] " + r.text }], partial: r.cut };
 }
 
@@ -1622,19 +1625,23 @@ function mask(s: any) {
 }
 
 /** user는 문자열 또는 content 배열(PDF·사진 등). cut은 답이 길어 중간에 잘렸는지 여부 */
-async function callClaudeFull(system: string, user: any, maxTokens: number) {
+async function callClaudeFull(system: string, user: any, maxTokens: number, model = CONFIG.MODEL) {
   if (!Deno.env.get("ANTHROPIC_API_KEY")) throw new Error("서버에 ANTHROPIC_API_KEY가 등록되어 있지 않습니다.");
   let res;
   try {
-    res = await anthropic.messages.create({ model: CONFIG.MODEL, max_tokens: maxTokens || 1500, system, messages: [{ role: "user", content: user }] });
+    res = await anthropic.messages.create({ model, max_tokens: maxTokens || 1500, system, messages: [{ role: "user", content: user }] });
   } catch (e: any) {
     if (e instanceof Anthropic.APIError) throw new Error("Claude API 오류(" + e.status + "): " + e.message);
     throw e;
   }
-  await recordUsage(CONFIG.MODEL, res.usage);
+  await recordUsage(model, res.usage);
+  // 판독 모델이 안전 검사로 답을 거절하면 기본 모델로 한 번 더 읽는다
+  if (res.stop_reason === "refusal" && model !== CONFIG.MODEL) return await callClaudeFull(system, user, maxTokens, CONFIG.MODEL);
   const text = res.content.map((c: any) => c.type === "text" ? c.text : "").join("");
   return { text, cut: res.stop_reason === "max_tokens" };
 }
+/** 도면·사진·스캔 PDF 판독: 고해상도 판독 모델로 읽는다 (생각하는 데 쓰는 몫까지 넉넉히) */
+const readClaude = (system: string, user: any, maxTokens: number) => callClaudeFull(system, user, maxTokens + 8000, CONFIG.READ_MODEL);
 async function callClaude(system: string, user: any, maxTokens: number) {
   return (await callClaudeFull(system, user, maxTokens)).text;
 }

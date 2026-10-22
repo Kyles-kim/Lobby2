@@ -1387,7 +1387,7 @@ function dimsEditHTML(d) {
   const rows = S.dimsDraft || [], has = dimsOf(d).length;
   const note = has && !d.치수확인 ? 'Lobby가 도면에서 읽은 값입니다. 맞으면 그대로, 틀린 곳만 고쳐서 저장해 주세요'
     : d.치수확인 ? `✓ 카일님 확인 ${esc(String(d.치수확인).slice(5))}` : '전장·전폭 등을 적어 두면 물을 때 이 값으로 답합니다';
-  const canRead = !has && d.조각수 > 0 && (d.형식 === 'PDF' || d.형식 === '이미지');
+  const canRead = !d.치수확인 && d.조각수 > 0 && (d.형식 === 'PDF' || d.형식 === '이미지');   // 확인 전이면 새 판독 모델로 다시 읽어 올 수 있다
   return `<div class="dims-edit${has && !d.치수확인 ? ' unchecked' : ''}">
     <div class="dims-head"><span>📐 주요 치수</span><small>${note}</small></div>
     ${rows.map((v, k) => `<div class="dims-row"><span>치수${k + 1}</span>
@@ -1395,7 +1395,7 @@ function dimsEditHTML(d) {
       <button class="btn sm ghost" data-dim-del="${k}" aria-label="치수${k + 1} 지우기">✕</button></div>`).join('')}
     <div class="btns" style="justify-content:flex-start">
       ${rows.length < 10 ? '<button class="btn sm ghost" data-dim-add>+ 치수 추가</button>' : ''}
-      ${canRead ? `<button class="btn sm" data-dim-read="${esc(d.파일ID)}">도면에서 읽어 오기</button>` : ''}</div></div>`;
+      ${canRead ? `<button class="btn sm" data-dim-read="${esc(d.파일ID)}">${has ? 'Lobby가 다시 읽기' : '도면에서 읽어 오기'}</button>` : ''}</div></div>`;
 }
 function collectDims() {
   document.querySelectorAll('[data-dim]').forEach(el => { S.dimsDraft[Number(el.dataset.dim)] = el.value; });
