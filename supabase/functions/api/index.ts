@@ -499,7 +499,7 @@ async function answer(q: string, plan: any, history: any[]) {
   const payload = {
     질문: q, 최근대화: history || [], 조회계획: plan,
     조회결과: useRec ? { 통계: result.stats, 기록: result.aiRows, 참고기록_검색어불일치: result.extra } : "(기록은 조회하지 않음)",
-    문서발췌: useDoc ? (docs.length ? docs.map((d) => ({ 번호: d.key, 문서: d.파일명, 형식: d.형식, ...(d.품번 ? { 품번: d.품번 } : {}), ...(d.품명 ? { 품명: d.품명 } : {}), ...(d.메모 ? { 메모: d.메모 } : {}), 위치: d.위치, 내용: d.본문 })) : "(관련 문서 조각을 찾지 못함)") : "(문서는 조회하지 않음)",
+    문서발췌: useDoc ? (docs.length ? docs.map((d) => ({ 번호: d.key, 문서: d.파일명, 형식: d.형식, ...(d.품번 ? { 품번: d.품번 } : {}), ...(d.품명 ? { 품명: d.품명 } : {}), ...(d.메모 ? { 메모: d.메모 } : {}), ...(d.주요치수 ? { 주요치수: d.주요치수, 치수확인: d.치수확인 } : {}), 위치: d.위치, 내용: d.본문 })) : "(관련 문서 조각을 찾지 못함)") : "(문서는 조회하지 않음)",
     프로필: await getProfile(),
   };
   const ans = extractJson(await callClaude(sys, JSON.stringify(payload), 1800));
@@ -797,8 +797,14 @@ function isDrawing(label: string, segs: Seg[]) {
   const words = segs.map((x) => x.text).join(" ").split(/\s+/).filter(Boolean);
   if (words.length < 15 || words.length / segs.length > 400) return false;     // 한 쪽에 글이 빽빽하면 일반 문서
   const dims = words.filter((w) => /^[Ø⌀φRCM±+\-]?\d+([.,]\d+)?(°|mm)?$/i.test(w) || /^[±+\-]\d/.test(w)).length;
-  return dims / words.length >= 0.35;
+  if (dims / words.length >= 0.35) return true;
+  // CAD에서 내보낸 도면 PDF는 표제란 글자가 함께 뽑혀 숫자 비율이 낮다 → 표제란 낱말이 여러 종류 보이면 도면
+  if (segs.length > 6) return false;
+  const text = segs.map((x) => x.text).join(" ");
+  return TITLE_BLOCK.filter((re) => re.test(text)).length >= 3;
 }
+const TITLE_BLOCK = [/SCALE|척\s*도/i, /DWG\.?\s*NO|DRAWING\s*NO|도\s*번/i, /DRAWN|CHECKED|APPROVED|DESIGNED|설\s*계|검\s*도/i, /THIRD\s*ANGLE|FIRST\s*ANGLE|3\s*각법|제\s*3\s*각/i,
+  /TOLERANCE|일반\s*공차|공\s*차/i, /UNIT\s*[:：]?\s*mm|단\s*위\s*[:：]?\s*mm/i, /MATERIAL|재\s*질/i, /\bREV(ISION)?\b|개\s*정/i, /SHEET|SIZE\s*A[0-4]/i];
 
 async function pdfSegmentsByClaude(bytes: Uint8Array, drawing = false) {
   if (bytes.length > CONFIG.PDF_AI_MAX_MB * 1024 * 1024) throw new Error("글자를 뽑을 수 없는 PDF(스캔본)인데 " + CONFIG.PDF_AI_MAX_MB + "MB를 넘어 읽지 못했습니다");
@@ -945,10 +951,16 @@ async function actDocs() {
 async function actReindex() {
   const started = Date.now();
   const rows = await run<any[]>(db.from("docs").select("*").neq("kind", "미지원"));
+  // 글자만 뽑아 두었던 도면 PDF(예전 판별 기준으로는 도면으로 못 알아본 CAD 도면)는 그림으로 다시 읽는다
+  const heads = await run<any[]>(db.from("doc_chunks").select("doc_id,body").eq("seq", 1));
+  const head: Record<string, string> = {}; heads.forEach((h) => { head[h.doc_id] = String(h.body || ""); });
+  const unreadDrawing = (d: any) => d.kind === "PDF" && head[d.id] !== undefined && !head[d.id].startsWith("[도면]")
+    && isDrawing([d.name, d.memo].filter(Boolean).join(" "), [{ loc: "", text: head[d.id] }]);
   let done = 0, errors = 0, pending = 0;
   for (const d of rows) {
-    if (d.status === "완료" || d.status.indexOf("일부만") === 0) continue;
-    if (Date.now() - started > 100000) { pending++; continue; }
+    const failed = !(d.status === "완료" || d.status.indexOf("일부만") === 0);
+    if (!failed && !unreadDrawing(d)) continue;
+    if (Date.now() - started > 50000) { pending++; continue; }   // 도면 한 장 판독에 수십 초가 걸려 서버 제한(150초) 안에서 멈춘다
     const st = await indexDoc(d);
     if (st === "완료") done++; else errors++;
   }

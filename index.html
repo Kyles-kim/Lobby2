@@ -480,7 +480,7 @@ body.speaking.beat .fx .ln{animation-name:flashB}
           도면은 올린 뒤 Lobby가 읽은 <b>주요 치수</b>(예: 전장: 358.10 (±0.2))를 보여 드리니, 맞으면 그대로·틀리면 고쳐서 저장해 주세요. 확인한 치수는 물을 때 정답으로 씁니다.</p>
         <input type="file" id="docFile" multiple hidden accept=".pdf,.docx,.xlsx,.xls,.xlsm,.pptx,.txt,.csv,.md,image/jpeg,image/png,image/gif,image/webp">
         <div class="btns">
-          <button class="btn" id="btnReindex">실패한 문서 다시 읽기</button>
+          <button class="btn" id="btnReindex">문서·도면 다시 읽기</button>
           <button class="btn pri" id="btnUpload">파일 올리기</button>
         </div>
         <div id="upProg" class="view" style="gap:4px"></div>
@@ -1356,14 +1356,21 @@ function applyDocs(r) {
       </div>
     </div>`).join('');
 }
+/** 실패한 문서와 그림으로 못 읽은 도면을 다시 읽는다. 서버가 한 번에 몇 개씩만 읽으므로 남은 게 없을 때까지 이어서 부른다 */
 async function reindex() {
-  const b = $('#btnReindex'); b.disabled = true; b.textContent = '읽는 중…';
+  const b = $('#btnReindex'); b.disabled = true;
+  let done = 0, errors = 0, pending = 0;
   try {
-    const r = await api('reindex');
-    applyDocs(r);
-    toast(r.done || r.errors || r.pending ? `다시 읽음 ${r.done} · 실패 ${r.errors}` + (r.pending ? ` · 남은 ${r.pending}개는 한 번 더 눌러 주세요` : '') : '다시 읽을 문서가 없습니다');
+    for (let round = 0; round < 15; round++) {
+      b.textContent = `읽는 중… ${done + errors}개 끝` + (pending ? ` · 남은 ${pending}개` : '');
+      const r = await api('reindex');
+      applyDocs(r);
+      done += r.done; errors += r.errors; pending = r.pending;
+      if (!pending || !(r.done + r.errors)) break;
+    }
+    toast(done || errors || pending ? `다시 읽음 ${done} · 실패 ${errors}` + (pending ? ` · 남은 ${pending}개는 한 번 더 눌러 주세요` : '') : '다시 읽을 문서가 없습니다', errors > 0);
   } catch (e) { toast(e.message, true); }
-  finally { b.disabled = false; b.textContent = '실패한 문서 다시 읽기'; }
+  finally { b.disabled = false; b.textContent = '문서·도면 다시 읽기'; }
 }
 /** 파일 올리기: 서버에서 올릴 주소를 받아 저장소에 직접 올린 뒤, 서버가 내용을 읽어 두게 한다 */
 /** 큰 사진은 올리기 전에 줄인다 (긴 변 3000px, 3.5MB 이하 JPEG) — Lobby가 읽을 수 있는 크기로 */
