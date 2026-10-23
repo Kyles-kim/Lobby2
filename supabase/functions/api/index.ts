@@ -650,12 +650,50 @@ async function actIndexDoc(req: any) {
   const doc = (await run<any[]>(db.from("docs").select("*").eq("id", String(req.id))))[0];
   if (!doc) throw new Error("문서를 찾지 못했습니다.");
   // 이미 읽어 둔 PDF를 다시 읽어 달라는 것('도면에서 읽어 오기')이면 짐작하지 않고 도면 그림으로 읽는다
-  const status = await indexDoc(doc, !!req.asDrawing || (doc.kind === "PDF" && !!doc.read_at));
+  const forced = !!req.asDrawing || (doc.kind === "PDF" && !!doc.read_at);
+  // 도면은 표제란·주요 치수만 먼저 빨리 읽어 바로 돌려주고, 도면 전체 판독은 응답 뒤에 이어서 한다
+  // (한 번에 다 읽으면 서버 제한 시간 150초를 넘겨 저장 전에 끊긴다)
+  const quick = await indexDrawingQuick(doc, forced);
+  if (quick) {
+    if (quick === "완료") inBackground(indexDoc(doc, true, true));
+    return { status: quick, ...(await actDocs()) };
+  }
+  const status = await indexDoc(doc, forced);
   return { status, ...(await actDocs()) };
 }
 
-/** 파일 하나를 읽어 조각으로 저장하고 상태를 돌려준다 */
-async function indexDoc(doc: any, asDrawing = false) {
+/** 응답을 보낸 뒤에도 서버가 하던 일을 마치게 한다 (Supabase EdgeRuntime.waitUntil, 없으면 그냥 이어서 실행) */
+function inBackground(p: Promise<unknown>) {
+  const q = p.catch((e) => console.error("뒤에서 읽기 실패:", e && e.message || e));
+  try { (globalThis as any).EdgeRuntime?.waitUntil?.(q); } catch (_e) { /* 없으면 그냥 둔다 */ }
+}
+
+/** 도면 PDF면 표제란·주요 치수만 빨리 읽어 저장하고 상태를 돌려준다. 도면이 아니면 "" */
+async function indexDrawingQuick(doc: any, forced: boolean) {
+  if (doc.kind !== "PDF") return "";
+  const { data: blob, error } = await db.storage.from(CONFIG.BUCKET).download(doc.path);
+  if (error || !blob) return "";                  // 아래 indexDoc가 알아듣기 쉬운 실패로 남긴다
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  if (bytes.length > CONFIG.PDF_AI_MAX_MB * 1024 * 1024) return "";
+  let text: Seg[] = [];
+  try { text = await pdfSegments(bytes); } catch (_e) { text = []; }
+  if (!forced && !isDrawing([doc.name, doc.part_no, doc.product, doc.memo].filter(Boolean).join(" "), text)) return "";
+  const content = [
+    { type: "document", source: { type: "base64", media_type: "application/pdf", data: encodeBase64(bytes) } },
+    { type: "text", text: DRAWING_QUICK },
+  ];
+  let quick = "", err = "";
+  try { quick = (await readClaude("너는 도면 판독 도구다. 보이는 것만 정확히 적는다.", content, 2000)).text.trim(); }
+  catch (e: any) { err = String(e && e.message || e).slice(0, 60); }
+  // 빠른 판독 결과를 맨 앞에, 뽑은 글자를 뒤에 둔다 → 도면 전체 판독이 끊겨도 치수 질문에 답할 수 있다
+  const segs: Seg[] = [...(quick ? [{ loc: "p.1", text: "[도면] " + quick }] : []), ...text];
+  const status = quick ? "완료" : segs.length ? "글자만 읽음(도면 치수 판독 실패: " + (err || "판독 결과 없음") + ")" : "실패: 도면 판독 실패(" + (err || "판독 결과 없음") + ")";
+  await saveRead(doc, segs, status, true);
+  return status;
+}
+
+/** 파일 하나를 읽어 조각으로 저장하고 상태를 돌려준다. later=도면 전체 판독(빠른 판독 뒤): 그림으로 못 읽었으면 앞서 저장한 것을 그대로 둔다 */
+async function indexDoc(doc: any, asDrawing = false, later = false) {
   let segs: Seg[] = [], status = "완료";
   if (doc.kind === "미지원") return doc.status;
   try {
@@ -668,7 +706,13 @@ async function indexDoc(doc: any, asDrawing = false) {
     else if (r.partial) status = "일부만 읽음(문서가 길어 앞부분만 읽었습니다. 나눠서 올려 주세요)";
     else if (r.note) status = r.note;            // 도면을 그림으로 못 읽음 → 카드에 보이고 '다시 읽기' 대상이 된다
   } catch (e: any) { status = "실패: " + String(e && e.message || e).slice(0, 80); }
+  if (later && (status !== "완료" || !segs.some((x) => x.text.startsWith("[도면]")))) return status;
+  await saveRead(doc, segs, status, !later);   // 주요 치수는 빠른 판독 값을 그대로 둔다
+  return status;
+}
 
+/** 읽은 조각을 저장하고, 비어 있는 품번·품명과 (확인 전) 주요 치수를 채운다 */
+async function saveRead(doc: any, segs: Seg[], status: string, setDims: boolean) {
   await run(db.from("doc_chunks").delete().eq("doc_id", doc.id));
   const chunks = chunkSegments(segs);
   for (let i = 0; i < chunks.length; i += 200) {
@@ -677,17 +721,17 @@ async function indexDoc(doc: any, asDrawing = false) {
   await run(db.from("docs").update({ chunks: chunks.length, read_at: nowStr(), status }).eq("id", doc.id));
   // 비워 둔 품번·품명은 도면 표제란이나 승인원에 적힌 값으로 채운다 (표 업데이트 전이면 건너뜀)
   if (segs.length && (!doc.part_no || !doc.product)) {
-    const m = metaFromText(segs), patch: any = {};
-    if (!doc.part_no && m.part) patch.part_no = m.part;
-    if (!doc.product && m.product) patch.product = m.product;
-    if (Object.keys(patch).length) await run(db.from("docs").update(patch).eq("id", doc.id)).catch(() => {});
+    const m = metaFromText(segs);
+    // 빈 칸만 채운다 (판독 도중 카일님이 적은 값은 그대로)
+    if (!doc.part_no && m.part) await run(db.from("docs").update({ part_no: m.part }).eq("id", doc.id).eq("part_no", "")).catch(() => {});
+    if (!doc.product && m.product) await run(db.from("docs").update({ product: m.product }).eq("id", doc.id).eq("product", "")).catch(() => {});
   }
   // 도면이면 주요 치수(전장·전폭·전고)를 읽은 값으로 채워 둔다 → 화면에서 카일님이 확인·수정 (이미 확인한 치수는 덮어쓰지 않는다)
-  if (!doc.dims_ok && segs.some((x) => x.text.startsWith("[도면]"))) {
+  if (setDims && segs.some((x) => x.text.startsWith("[도면]"))) {
     const dims = dimsFromText(segs);
-    if (dims.length) await run(db.from("docs").update({ dims: dims.join("\n"), dims_ok: "" }).eq("id", doc.id)).catch(() => {});
+    // dims_ok가 빈 것만 바꾼다 → 판독 도중 카일님이 확인·저장한 치수는 덮어쓰지 않는다
+    if (dims.length) await run(db.from("docs").update({ dims: dims.join("\n") }).eq("id", doc.id).eq("dims_ok", "")).catch(() => {});
   }
-  return status;
 }
 
 /** 도면 판독 결과의 "■ 주요 치수" 부분 → ["전장: 358.10 (±0.2)", "전폭: 258.55 (±0.15)", …] */
@@ -787,7 +831,7 @@ async function pdfSegments(bytes: Uint8Array): Promise<Seg[]> {
 const TRANSCRIBE = '글자를 빠짐없이 옮겨 적어라. 표는 한 행을 "칸 | 칸 | 칸" 한 줄로 적는다. 도면의 치수·공차·주석·표제란도 적는다. 요약·설명 없이 원문만 출력.';
 
 // 도면 판독: 숫자만 옮기면 어느 부분 치수인지 알 수 없으므로 "부분 - 치수: 값 공차" 형태로 정리하게 한다
-const DRAWING = [
+const DRAWING_PARTS = [
   "이 도면을 보고 아래 순서로 빠짐없이 적어라. 보이는 값만 적고 추정하지 않는다. 읽기 어려운 값은 (판독 불가)로 적는다.",
   "■ 표제란: 도번, 품번, 품명, 금형번호, 재질·적용 원료(그레이드 포함), 색상, 척도, 단위, 리비전, 작성·승인일 등 보이는 항목을 \"항목: 값\"으로 한 줄씩",
   "■ 주요 치수: 제품 외형 전체 치수를 한 줄에 하나씩 \"가로전장: <값> (공차: <공차>)\", \"세로전장: <값> (공차: <공차>)\" 형식으로 (가로전장=정면도에서 가로 방향 외형 전체 길이, 세로전장=정면도에서 세로 방향 외형 전체 길이. 외형 두께·높이 치수가 따로 있으면 \"높이: <값> (공차: <공차>)\"도). 제품 일부(구멍·리브·보스 등)의 치수가 아니라 외곽 끝에서 끝까지의 치수를 고른다. 도면에 적힌 숫자를 소수점 자리까지 그대로 옮기고 반올림하지 않는다. 공차가 따로 없으면 일반공차를 괄호에, 그것도 없으면 괄호 없이. 도면에서 확실히 읽히지 않는 항목은 적지 않는다",
@@ -795,7 +839,10 @@ const DRAWING = [
   "■ 일반공차·주석·표면처리·검사 기준: 원문 그대로",
   "■ 형상: 어떤 부품인지, 형태와 주요 특징을 두세 문장으로",
   "■ 그 밖의 글자: 위에 들어가지 않은 표·글자를 원문 그대로",
-].join("\n");
+];
+const DRAWING = DRAWING_PARTS.join("\n");
+// 빠른 판독: 표제란과 주요 치수만 (서버 제한 시간 안에 끝나도록 답을 짧게)
+const DRAWING_QUICK = [...DRAWING_PARTS.slice(0, 3), "이 두 항목(■ 표제란, ■ 주요 치수)만 적고 다른 설명은 붙이지 않는다. 여러 쪽이면 첫 번째 도면 기준으로 적는다."].join("\n");
 const DRAWING_NAME = /(도면|drawing|dwg|dxf|assy|조립도|부품도|외형도|제작도|금형도)/i;
 // 이름에 문서 종류가 적힌 PDF는 짧아도 일반 문서로 본다
 const DOC_TYPE_NAME = /(승인원|표준서|기준서|성적서|사양서|명세서|견적|목록|매뉴얼|설명서|\bbom\b|\blist\b|spec|manual|catalog|카탈로그|report|보고서)/i;
@@ -1007,7 +1054,7 @@ async function actReindex() {
     const failed = !(d.status === "완료" || d.status.indexOf("일부만") === 0);
     if (!failed && !unreadDrawing(d)) continue;
     if (Date.now() - started > 50000) { pending++; continue; }   // 도면 한 장 판독에 수십 초가 걸려 서버 제한(150초) 안에서 멈춘다
-    const st = await indexDoc(d);
+    const st = (await indexDrawingQuick(d, unreadDrawing(d))) || await indexDoc(d);   // 도면은 표제란·주요 치수만 빨리
     if (st === "완료") done++; else errors++;
   }
   return { done, errors, pending, ...(await actDocs()) };
@@ -1683,11 +1730,12 @@ function mask(s: any) {
 }
 
 /** user는 문자열 또는 content 배열(PDF·사진 등). cut은 답이 길어 중간에 잘렸는지 여부 */
-async function callClaudeFull(system: string, user: any, maxTokens: number, model = CONFIG.MODEL) {
+async function callClaudeFull(system: string, user: any, maxTokens: number, model = CONFIG.MODEL, effort = "") {
   if (!Deno.env.get("ANTHROPIC_API_KEY")) throw new Error("서버에 ANTHROPIC_API_KEY가 등록되어 있지 않습니다.");
   let res;
   try {
-    const params = { model, max_tokens: maxTokens || 1500, system, messages: [{ role: "user" as const, content: user }] };
+    const params: any = { model, max_tokens: maxTokens || 1500, system, messages: [{ role: "user" as const, content: user }] };
+    if (effort && /opus-5|sonnet-5|fable/.test(model)) params.output_config = { effort };   // 판독은 깊이 생각할 일이 적다 → 낮춰서 빨리 끝낸다
     // 긴 답(도면 판독 등)은 SDK가 스트리밍 없이는 보내지 않으므로 스트리밍으로 받아 끝까지 모은다
     res = params.max_tokens > 16000 ? await anthropic.messages.stream(params).finalMessage() : await anthropic.messages.create(params);
   } catch (e: any) {
@@ -1701,7 +1749,7 @@ async function callClaudeFull(system: string, user: any, maxTokens: number, mode
   return { text, cut: res.stop_reason === "max_tokens" };
 }
 /** 도면·사진·스캔 PDF 판독: 고해상도 판독 모델로 읽는다 (생각하는 데 쓰는 몫까지 넉넉히) */
-const readClaude = (system: string, user: any, maxTokens: number) => callClaudeFull(system, user, maxTokens + 8000, CONFIG.READ_MODEL);
+const readClaude = (system: string, user: any, maxTokens: number, effort = "low") => callClaudeFull(system, user, maxTokens + 8000, CONFIG.READ_MODEL, effort);
 async function callClaude(system: string, user: any, maxTokens: number) {
   return (await callClaudeFull(system, user, maxTokens)).text;
 }
