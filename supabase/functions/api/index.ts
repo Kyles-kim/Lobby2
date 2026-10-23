@@ -808,7 +808,9 @@ function isDrawing(label: string, segs: Seg[]) {
   if (segs.length > 6) return false;
   const text = segs.map((x) => x.text).join(" ");
   if (TITLE_BLOCK.filter((re) => re.test(text)).length >= 3) return true;
-  // 쪽수가 적고(5쪽 이하) 쪽마다 글자가 적은 PDF도 도면으로 본다 (글자를 선으로 바꿔 내보낸 도면은 뽑히는 글자가 거의 없다)
+  // 쪽수가 적고(5쪽 이하) 쪽마다 글자가 적은 PDF도 도면으로 본다 (글자를 선으로 바꿔 내보낸 도면은 뽑히는 글자가 거의 없다).
+  // 단, 이름에 승인원·작업표준서·목록처럼 문서 종류가 적혀 있으면 일반 문서
+  if (/(승인원|표준서|기준서|성적서|사양서|명세서|견적|목록|매뉴얼|설명서|\bbom\b|\blist\b|spec|manual|catalog|카탈로그|report|보고서)/i.test(label)) return false;
   return segs.length <= 5 && text.replace(/\s/g, "").length / segs.length < 1500;
 }
 const TITLE_BLOCK = [/SCALE|척\s*도/i, /DWG\.?\s*NO|DRAWING\s*NO|도\s*번/i, /DRAWN|CHECKED|APPROVED|DESIGNED|설\s*계|검\s*도/i, /THIRD\s*ANGLE|FIRST\s*ANGLE|3\s*각법|제\s*3\s*각/i,
