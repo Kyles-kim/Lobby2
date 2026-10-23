@@ -48,6 +48,8 @@ show("문서별 리어·프론트 표시 (이름 대신 여부만)",
      "select left(id::text, 8) as id, concat_ws(' ', name, part_no, product, memo) ~* '" + REAR + "' as is_rear,"
      " concat_ws(' ', name, part_no, product, memo) ~* '" + FRONT + "' as is_front, (dims <> '') as has_dims, (dims_ok <> '') as dims_checked"
      " from docs where kind = 'PDF' order by read_at desc nulls last limit 20")
+show("최근 올린 문서 8건 (이름 제외)", "select left(id::text, 8) as id, kind, size, uploaded_at, read_at, chunks, left(status, 90) as status,"
+     " (dims <> '') as has_dims from docs order by uploaded_at desc limit 8")
 # 도면 판독 상태: 저장소가 공개라 파일 이름·도면 내용은 찍지 않고 여부·개수만 본다
 show("도면 판독 상태 (이름·내용 제외)", "select left(d.id::text, 8) as id, d.kind, d.size, d.chunks, d.status, d.read_at,"
      " (d.dims <> '') as has_dims, (d.dims_ok <> '') as dims_checked,"
