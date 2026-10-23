@@ -621,6 +621,8 @@ async function actUploadUrl(req: any) {
   if (part) row.part_no = part;
   if (product) row.product = product;
   if (memo) row.memo = memo;
+  const dims = dimsList(req.dims);                     // 올릴 때 카일님이 적은 주요 치수 = 확인한 값 (Lobby 판독이 덮어쓰지 않는다)
+  if (dims.length) { row.dims = dims.join("\n"); row.dims_ok = nowStr(); }
   await memoSafe(run(db.from("docs").insert(row)));
   return { id, uploadUrl: data.signedUrl, kind };
 }

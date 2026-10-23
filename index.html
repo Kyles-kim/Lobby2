@@ -270,6 +270,7 @@ body.speaking.beat .fx .ln{animation-name:flashB}
 .dims-row{display:grid;grid-template-columns:44px minmax(0,1fr) 34px;gap:6px;align-items:center}
 .dims-row span{font-size:12px;color:var(--muted)}
 .dims-row input{font-family:var(--mono)}
+.dims-edit .dims-row input.guess{border-color:rgba(214,130,20,.8);background:rgba(255,180,60,.12)}
 .dims-row .btn{height:34px;padding:0}
 .up-dims-note{font-size:12px;color:var(--muted);padding:8px 10px;border-radius:8px;border:1px dashed rgba(16,140,120,.45);background:rgba(16,170,140,.06)}
 .doc-thumb{display:block;border-radius:10px;overflow:hidden;background:#F5F2EA;border:1px solid var(--line)}
@@ -1390,6 +1391,10 @@ async function shrinkImage(f) {
 /* 주요 치수: 도면을 읽을 때 Lobby가 전장·전폭 등을 채우고, 카일님이 확인·수정한다. 확인한 값은 물을 때 정답으로 쓴다 */
 const dimsOf = d => Array.isArray(d.주요치수) ? d.주요치수 : [];
 const DIM_HINTS = ['예) 가로전장: 363.95 (공차: ±0.15)', '예) 세로전장: 299.95 (공차: ±0.15)', '예) 높이: 45.0 (공차: ±0.1)'];
+// 치수1·치수2에 미리 넣어 두는 기본값: 카일님이 실제 치수로 고친다. 고치지 않은 기본값은 저장하지 않는다(틀린 값이 정답으로 쓰이지 않게)
+const DIM_DEFAULTS = ['가로전장: 100 (공차: ±0.1)', '세로전장: 100 (공차: ±0.1)'];
+const isDimDefault = v => DIM_DEFAULTS.includes(String(v).trim());
+const realDims = list => (list || []).map(v => String(v).trim()).filter(v => v && !isDimDefault(v));
 function dimsEditHTML(d) {
   const rows = S.dimsDraft || [], has = dimsOf(d).length;
   const note = has && !d.치수확인 ? 'Lobby가 도면에서 읽은 값입니다. 맞으면 그대로, 틀린 곳만 고쳐서 저장해 주세요'
@@ -1398,7 +1403,7 @@ function dimsEditHTML(d) {
   return `<div class="dims-edit${has && !d.치수확인 ? ' unchecked' : ''}">
     <div class="dims-head"><span>📐 주요 치수</span><small>${note}</small></div>
     ${rows.map((v, k) => `<div class="dims-row"><span>치수${k + 1}</span>
-      <input data-dim="${k}" maxlength="60" autocomplete="off" value="${esc(v)}" placeholder="${esc(DIM_HINTS[Math.min(k, 2)])}">
+      <input data-dim="${k}" class="${isDimDefault(v) ? 'guess' : ''}" oninput="this.classList.remove('guess')" maxlength="60" autocomplete="off" value="${esc(v)}" placeholder="${esc(DIM_HINTS[Math.min(k, 2)])}">
       <button class="btn sm ghost" data-dim-del="${k}" aria-label="치수${k + 1} 지우기">✕</button></div>`).join('')}
     <div class="btns" style="justify-content:flex-start">
       ${rows.length < 10 ? '<button class="btn sm ghost" data-dim-add>+ 치수 추가</button>' : ''}
@@ -1418,7 +1423,7 @@ function redrawDocEdit() {
 function editDocMemo(i) {
   const d = S.docs[i]; if (!d) return;
   S.memoEdit = S.memoEdit === d.파일ID ? null : d.파일ID;
-  S.dimsDraft = dimsOf(d).length ? [...dimsOf(d)] : ['', ''];
+  S.dimsDraft = dimsOf(d).length ? [...dimsOf(d)] : [...DIM_DEFAULTS];
   applyDocs({ docs: S.docs });
   if (S.memoEdit) setTimeout(() => { const el = dimsOf(d).length ? document.querySelector('[data-dim="0"]') : $('#mePart'); el?.focus(); el?.closest('.card')?.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 30);
 }
@@ -1440,7 +1445,7 @@ async function saveDocMemo(i, btn) {
   const d = S.docs[i]; if (!d) return;
   collectDims();
   const part = $('#mePart').value.trim(), product = $('#meProduct').value.trim();
-  const dims = S.dimsDraft.map(v => v.trim()).filter(Boolean);
+  const dims = realDims(S.dimsDraft);
   btn.disabled = true;
   try {
     S.memoEdit = null;
@@ -1489,7 +1494,7 @@ function kindLabel(name) {
   return { pdf: 'PDF', docx: '워드', xlsx: '엑셀', xls: '엑셀', xlsm: '엑셀', pptx: '파워포인트', jpg: '사진', jpeg: '사진', png: '사진', gif: '사진', webp: '사진', txt: '텍스트', csv: '텍스트', md: '텍스트' }[e] || e.toUpperCase();
 }
 function openUploadPlan(files) {
-  S.upPlan = [...files].map(f => { const g = guessMeta(f.name); return { f, ...g, guessed: { ...g } }; });
+  S.upPlan = [...files].map(f => { const g = guessMeta(f.name); return { f, ...g, guessed: { ...g }, dims: [...DIM_DEFAULTS] }; });
   if (!S.upPlan.length) return;
   renderUploadPlan();
   $('#upPlan').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1498,6 +1503,7 @@ function collectUploadPlan() {
   (S.upPlan || []).forEach((it, i) => {
     const v = k => { const el = document.querySelector(`[data-up-${k}="${i}"]`); return el ? el.value.trim() : null; };
     ['part', 'product', 'memo'].forEach(k => { const x = v(k); if (x !== null) it[k] = x; });
+    document.querySelectorAll(`[data-up-dim^="${i}:"]`).forEach(el => { it.dims[Number(el.dataset.upDim.split(':')[1])] = el.value; });
   });
 }
 function renderUploadPlan() {
@@ -1516,7 +1522,12 @@ function renderUploadPlan() {
       <div class="form">
         <label class="fld"><span>품번</span><input data-up-part="${i}" class="${g(it, 'part')}" maxlength="40" autocomplete="off" value="${esc(it.part)}" placeholder="예) CR-747"></label>
         <label class="fld"><span>제품명·품명</span><input data-up-product="${i}" class="${g(it, 'product')}" maxlength="60" autocomplete="off" value="${esc(it.product)}" placeholder="예) 리모컨 하부 케이스"></label>
-        <div class="fld wide up-dims-note">📐 <b>주요 치수</b> (가로전장·세로전장)는 올린 뒤 Lobby가 도면에서 읽어 채워 드립니다. 확인 창이 열리면 맞는지 보고 저장해 주세요.</div>
+        <div class="fld wide dims-edit">
+          <div class="dims-head"><span>📐 주요 치수</span><small>주황 칸은 기본값(100)입니다. 실제 치수로 고쳐 주세요</small></div>
+          ${it.dims.map((v, k) => `<div class="dims-row"><span>치수${k + 1}</span>
+            <input data-up-dim="${i}:${k}" class="${isDimDefault(v) ? 'guess' : ''}" maxlength="60" autocomplete="off" value="${esc(v)}" placeholder="${esc(DIM_HINTS[Math.min(k, 2)])}">
+            <button class="btn sm ghost" data-up-dim-del="${i}:${k}" aria-label="치수${k + 1} 지우기">✕</button></div>`).join('')}
+          ${it.dims.length < 10 ? `<div class="btns" style="justify-content:flex-start"><button class="btn sm ghost" data-up-dim-add="${i}">+ 치수 추가</button></div>` : ''}</div>
       </div></div>`).join('')}
     <div class="btns"><button class="btn" id="upCancel">취소</button><button class="btn pri" id="upGo">올리기 (${list.length}개)</button></div>`;
   box.hidden = false;
@@ -1524,6 +1535,14 @@ function renderUploadPlan() {
 $('#upPlan').addEventListener('input', e => { if (e.target.classList.contains('guess')) e.target.classList.remove('guess'); });
 $('#upPlan').addEventListener('click', e => {
   const t = e.target.closest('button'); if (!t) return;
+  if (t.dataset.upDimAdd != null) {
+    collectUploadPlan(); const it = S.upPlan[Number(t.dataset.upDimAdd)]; it.dims.push(''); renderUploadPlan();
+    document.querySelector(`[data-up-dim="${t.dataset.upDimAdd}:${it.dims.length - 1}"]`)?.focus(); return;
+  }
+  if (t.dataset.upDimDel != null) {
+    collectUploadPlan(); const [i, k] = t.dataset.upDimDel.split(':').map(Number), it = S.upPlan[i];
+    it.dims.splice(k, 1); if (!it.dims.length) it.dims.push(''); renderUploadPlan(); return;
+  }
   if (t.id === 'upApplyAll') {
     const p = $('#upAllPart').value.trim(), pr = $('#upAllProduct').value.trim();
     collectUploadPlan();
@@ -1552,7 +1571,7 @@ async function uploadDocs(items) {
       if (/^image\//.test(f.type)) { mark(i, '사진 크기 맞추는 중…'); f = await shrinkImage(f); }
       if (f.size > (S.maxMb || 50) * 1048576) throw new Error(`${S.maxMb || 50}MB를 넘습니다`);
       mark(i, '올리는 중…');
-      const u = await api('uploadUrl', { name: f.name, size: f.size, type: f.type, part: items[i].part, product: items[i].product, memo: items[i].memo });
+      const u = await api('uploadUrl', { name: f.name, size: f.size, type: f.type, part: items[i].part, product: items[i].product, memo: items[i].memo, dims: realDims(items[i].dims) });
       if (!isDemo()) {
         const res = await fetch(u.uploadUrl, { method: 'PUT', headers: { 'content-type': f.type || 'application/octet-stream' }, body: f });
         if (!res.ok) throw new Error('올리기에 실패했습니다');
@@ -2448,13 +2467,13 @@ const Demo = (() => {
       }
       if (action === 'docs') return { docs, maxMb: 50 };
       if (action === 'reindex') { await wait(900); return { done: 0, pending: 0, errors: 0, docs }; }
-      if (action === 'uploadUrl') { lastMeta = { 품번: String(d.part || '').toUpperCase(), 품명: d.product || '', 메모: d.memo || '' }; return { id: 'F' + Date.now(), uploadUrl: 'demo' }; }
+      if (action === 'uploadUrl') { lastMeta = { 품번: String(d.part || '').toUpperCase(), 품명: d.product || '', 메모: d.memo || '', ...(d.dims && d.dims.length ? { 주요치수: d.dims, 치수확인: now() } : {}) }; return { id: 'F' + Date.now(), uploadUrl: 'demo' }; }
       if (action === 'indexDoc') {
         const ext = (d.name || '').split('.').pop().toLowerCase();
         const kind = { pdf: 'PDF', docx: '워드', xlsx: '엑셀', xls: '엑셀', pptx: '파워포인트', txt: '텍스트', csv: '텍스트', md: '텍스트', jpg: '이미지', jpeg: '이미지', png: '이미지' }[ext] || '미지원';
         const dwg = /도면/.test(d.name + (lastMeta.메모 || ''));    // 데모: 도면이면 읽은 척 주요 치수를 채워 확인 창을 보여 준다
-        docs.push({ ...lastMeta, 파일ID: d.id, 파일명: d.name, 형식: kind, 크기: d.size, 수정일시: now(), 조각수: kind === '미지원' ? 0 : 3, 읽은일시: now(), 상태: kind === '미지원' ? '미지원(' + ext + ')' : '완료', 링크: '',
-          주요치수: dwg ? ['가로전장: 363.95 (공차: ±0.15)', '세로전장: 299.95 (공차: ±0.15)'] : [], 치수확인: '' });
+        docs.push({ 파일ID: d.id, 파일명: d.name, 형식: kind, 크기: d.size, 수정일시: now(), 조각수: kind === '미지원' ? 0 : 3, 읽은일시: now(), 상태: kind === '미지원' ? '미지원(' + ext + ')' : '완료', 링크: '',
+          주요치수: dwg ? ['가로전장: 363.95 (공차: ±0.15)', '세로전장: 299.95 (공차: ±0.15)'] : [], 치수확인: '', ...lastMeta });
         return { status: kind === '미지원' ? '미지원(' + ext + ')' : '완료', docs };
       }
       if (action === 'docMemo') {
