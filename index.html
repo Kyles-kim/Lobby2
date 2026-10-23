@@ -1023,7 +1023,7 @@ function docEvidenceHTML(dv) {
     const shot = !want ? '' : d.형식 === '이미지'
       ? `<a class="shot" href="${esc(d.링크)}" target="_blank" rel="noopener"><img src="${esc(d.링크)}" alt="${esc(d.파일명)}" loading="lazy"><span class="zoom">크게 보기</span></a>`
       : `<a class="shot pdf" href="${esc(d.링크)}#page=${Number(d.쪽) || 1}" target="_blank" rel="noopener"><canvas data-pdf="${esc(d.링크)}" data-page="${Number(d.쪽) || 1}"></canvas><span class="zoom">p.${Number(d.쪽) || 1} 크게 보기</span></a>`;
-    return `<div class="doc-ev">${d.링크 ? `<a href="${esc(d.링크)}" target="_blank" rel="noopener">${esc(d.파일명)}</a>` : `<b>${esc(d.파일명)}</b>`}${d.품번 || d.품명 || d.메모 ? `<small>${esc([d.품번, d.품명, d.메모].filter(Boolean).join(' · '))}</small>` : ''}${shot}<small>${esc(d.위치 || '')}</small><small>${esc(d.발췌)}…</small></div>`;
+    return `<div class="doc-ev">${d.링크 ? `<a href="${esc(d.링크)}" target="_blank" rel="noopener">${esc(d.파일명)}</a>` : `<b>${esc(d.파일명)}</b>`}${d.품번 || d.품명 || d.메모 ? `<small>${esc([d.품번, d.품명, d.메모].filter(Boolean).join(' · '))}</small>` : ''}${Array.isArray(d.주요치수) && d.주요치수.length ? `<div class="row">${d.주요치수.map(x => `<span class="chip z">${esc(x)}</span>`).join('')}${d.치수확인 === '카일님 확인' ? '' : '<span class="chip warn">확인 전</span>'}</div>` : ''}${shot}<small>${esc(d.위치 || '')}</small><small>${esc(d.발췌)}…</small></div>`;
   }).join('');
 }
 /* PDF 미리보기: pdf.js(필요할 때만 불러옴)로 근거가 된 쪽을 그림으로 그린다 */
