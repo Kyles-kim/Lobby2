@@ -649,7 +649,8 @@ async function memoSafe<T>(p: Promise<T>) {
 async function actIndexDoc(req: any) {
   const doc = (await run<any[]>(db.from("docs").select("*").eq("id", String(req.id))))[0];
   if (!doc) throw new Error("문서를 찾지 못했습니다.");
-  const status = await indexDoc(doc, !!req.asDrawing);
+  // 이미 읽어 둔 PDF를 다시 읽어 달라는 것('도면에서 읽어 오기')이면 짐작하지 않고 도면 그림으로 읽는다
+  const status = await indexDoc(doc, !!req.asDrawing || (doc.kind === "PDF" && !!doc.read_at));
   return { status, ...(await actDocs()) };
 }
 
@@ -796,22 +797,24 @@ const DRAWING = [
   "■ 그 밖의 글자: 위에 들어가지 않은 표·글자를 원문 그대로",
 ].join("\n");
 const DRAWING_NAME = /(도면|drawing|dwg|dxf|assy|조립도|부품도|외형도|제작도|금형도)/i;
-/** 도면인지: 파일 이름·메모에 도면이라는 말이 있거나, 뽑은 글자 대부분이 치수처럼 생긴 숫자인 짧은 PDF */
+// 이름에 문서 종류가 적힌 PDF는 짧아도 일반 문서로 본다
+const DOC_TYPE_NAME = /(승인원|표준서|기준서|성적서|사양서|명세서|견적|목록|매뉴얼|설명서|\bbom\b|\blist\b|spec|manual|catalog|카탈로그|report|보고서)/i;
+/** 도면인지: 이름에 도면이라는 말이 있거나, 쪽수·글자가 적거나, 치수 숫자·표제란 낱말이 많은 PDF */
 function isDrawing(label: string, segs: Seg[]) {
   if (DRAWING_NAME.test(label)) return true;
-  if (!segs.length || segs.length > 30) return false;
-  const words = segs.map((x) => x.text).join(" ").split(/\s+/).filter(Boolean);
-  if (words.length < 15 || words.length / segs.length > 400) return false;     // 한 쪽에 글이 빽빽하면 일반 문서
-  const dims = words.filter((w) => /^[Ø⌀φRCM±+\-]?\d+([.,]\d+)?(°|mm)?$/i.test(w) || /^[±+\-]\d/.test(w)).length;
-  if (dims / words.length >= 0.35) return true;
+  const docType = DOC_TYPE_NAME.test(label);
+  if (!segs.length) return !docType;              // 글자가 전혀 없는 PDF(글자를 선으로 바꾼 도면·스캔)
+  if (segs.length > 30) return false;
+  const text = segs.map((x) => x.text).join(" "), perPage = text.replace(/\s/g, "").length / segs.length;
+  // 쪽수가 적고(5쪽 이하) 쪽마다 글자가 적으면 도면 (CAD 도면은 글자가 한 자씩 띄어져 뽑혀도 글자 수 자체는 적다)
+  if (!docType && segs.length <= 5 && perPage < 1500) return true;
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length >= 15 && perPage <= 2500) {
+    const dims = words.filter((w) => /^[Ø⌀φRCM±+\-]?\d+([.,]\d+)?(°|mm)?$/i.test(w) || /^[±+\-]\d/.test(w)).length;
+    if (dims / words.length >= 0.35) return true;
+  }
   // CAD에서 내보낸 도면 PDF는 표제란 글자가 함께 뽑혀 숫자 비율이 낮다 → 표제란 낱말이 여러 종류 보이면 도면
-  if (segs.length > 6) return false;
-  const text = segs.map((x) => x.text).join(" ");
-  if (TITLE_BLOCK.filter((re) => re.test(text)).length >= 3) return true;
-  // 쪽수가 적고(5쪽 이하) 쪽마다 글자가 적은 PDF도 도면으로 본다 (글자를 선으로 바꿔 내보낸 도면은 뽑히는 글자가 거의 없다).
-  // 단, 이름에 승인원·작업표준서·목록처럼 문서 종류가 적혀 있으면 일반 문서
-  if (/(승인원|표준서|기준서|성적서|사양서|명세서|견적|목록|매뉴얼|설명서|\bbom\b|\blist\b|spec|manual|catalog|카탈로그|report|보고서)/i.test(label)) return false;
-  return segs.length <= 5 && text.replace(/\s/g, "").length / segs.length < 1500;
+  return segs.length <= 6 && TITLE_BLOCK.filter((re) => re.test(text)).length >= 3;
 }
 const TITLE_BLOCK = [/SCALE|척\s*도/i, /DWG\.?\s*NO|DRAWING\s*NO|도\s*번/i, /DRAWN|CHECKED|APPROVED|DESIGNED|설\s*계|검\s*도/i, /THIRD\s*ANGLE|FIRST\s*ANGLE|3\s*각법|제\s*3\s*각/i,
   /TOLERANCE|일반\s*공차|공\s*차/i, /UNIT\s*[:：]?\s*mm|단\s*위\s*[:：]?\s*mm/i, /MATERIAL|재\s*질/i, /\bREV(ISION)?\b|개\s*정/i, /SHEET|SIZE\s*A[0-4]/i];
@@ -997,7 +1000,7 @@ async function actReindex() {
   // 글자만 뽑아 두었던 도면 PDF(예전 판별 기준으로는 도면으로 못 알아본 CAD 도면)는 그림으로 다시 읽는다
   const heads = await run<any[]>(db.from("doc_chunks").select("doc_id,body").eq("seq", 1));
   const head: Record<string, string> = {}; heads.forEach((h) => { head[h.doc_id] = String(h.body || ""); });
-  const unreadDrawing = (d: any) => d.kind === "PDF" && head[d.id] !== undefined && !head[d.id].startsWith("[도면]")
+  const unreadDrawing = (d: any) => d.kind === "PDF" && !d.dims_ok && head[d.id] !== undefined && !head[d.id].startsWith("[도면]")   // 치수를 이미 확인한 도면은 다시 읽지 않는다(비용)
     && isDrawing([d.name, d.memo].filter(Boolean).join(" "), [{ loc: "", text: head[d.id] }]);
   let done = 0, errors = 0, pending = 0;
   for (const d of rows) {
