@@ -20,6 +20,8 @@ import { decodeBase64, encodeBase64 } from "jsr:@std/encoding/base64";
 // ───────────────────────── 설정 ─────────────────────────
 const CONFIG = {
   MODEL: Deno.env.get("LOBBY_MODEL") || "claude-sonnet-4-5",
+  // 도면·사진·스캔 PDF 판독용: 고해상도로 보는 모델(긴 변 2576px까지)이라 작은 치수 글자를 더 정확히 읽는다. 올릴 때 한 번만 쓴다
+  READ_MODEL: Deno.env.get("LOBBY_READ_MODEL") || "claude-opus-5-5",
   TRASH_DAYS: 30,               // 삭제 후 복구 가능 기간(일)
   LEARN_SCAN: 800,              // 입력 습관을 배울 때 살펴볼 최근 기록 수
   LEARN_EXAMPLES: 6,            // 새 입력 정리 시 참고용으로 보여 줄 비슷한 과거 기록 수
@@ -482,7 +484,7 @@ async function answer(q: string, plan: any, history: any[]) {
     '- 문서발췌에 답이 없으면 "등록된 문서에서 찾지 못했습니다"라고 말하고, 어떤 문서를 문서 탭에서 올리면 되는지 한 줄로 제안한다.',
     "- 카일님이 문서를 보여 달라·열어 달라고 하면 그 문서가 무엇에 관한 것인지 한두 문장으로 말하고 \"화면에서 바로 열 수 있습니다\"라고 덧붙인다(근거문서에 그 문서의 번호를 넣으면 화면에 열기 버튼이 나온다). 읽어 달라고 하면 음성에 핵심 내용을 3~5문장으로 읽기 좋게 옮긴다.",
     "- 도면·제품사진(형식이 이미지이거나 내용이 [도면]·[사진]으로 시작)을 보여 달라거나 치수·형상을 물으면 근거문서에 그 번호를 꼭 넣는다(화면에 도면·사진 미리보기가 나온다). 같은 제품의 승인원·도면·사진이 함께 있으면 함께 넣는다.",
-    "- 전장·전폭·전고 같은 주요 치수는 문서발췌의 주요치수 값을 그대로 쓴다. 치수확인이 \"카일님 확인\"이면 판독 본문과 달라도 그 값이 정답이다.",
+    "- 가로전장·세로전장·전장·전폭·높이(가로·세로·길이·폭) 같은 주요 치수를 물으면(\"전장\"만 물으면 가로전장과 세로전장을 함께 알려 준다), 내용이 \"★ 카일님이 확인한 주요 치수\"로 시작하는 문서발췌의 그 값을 글자 그대로(소수점·공차 포함) 답한다. 판독 본문의 숫자가 달라도 무시한다. ★ 값이 없을 때만 주요치수, 그다음 판독 본문을 쓴다.",
     "- 그 밖의 치수는 [도면] 판독의 \"뷰·부분 - 치수 이름: 값 공차\"를 근거로, 어느 부분의 치수인지 함께 말한다. 적용 원료·재질·금형번호는 표제란이나 승인원의 값을 그대로 쓴다.",
     "- 물은 치수·금형번호가 문서발췌에 없으면 비슷한 숫자로 짐작하지 말고 \"도면에서 ○○을(를) 찾지 못했습니다\"라고 말한다. 같은 제품의 다른 부품(예: FRONT와 REAR) 도면 값을 섞지 않는다.",
     "- 출처가 없음(인사·잡담·일반 상식)이면 알고 있는 지식으로 짧고 따뜻하게 답한다.",
@@ -497,7 +499,9 @@ async function answer(q: string, plan: any, history: any[]) {
   const payload = {
     질문: q, 최근대화: history || [], 조회계획: plan,
     조회결과: useRec ? { 통계: result.stats, 기록: result.aiRows, 참고기록_검색어불일치: result.extra } : "(기록은 조회하지 않음)",
-    문서발췌: useDoc ? (docs.length ? docs.map((d) => ({ 번호: d.key, 문서: d.파일명, 형식: d.형식, ...(d.품번 ? { 품번: d.품번 } : {}), ...(d.품명 ? { 품명: d.품명 } : {}), ...(d.메모 ? { 메모: d.메모 } : {}), 위치: d.위치, 내용: d.본문 })) : "(관련 문서 조각을 찾지 못함)") : "(문서는 조회하지 않음)",
+    문서발췌: useDoc ? (docs.length ? docs.map((d) => ({ 번호: d.key, 문서: d.파일명, 형식: d.형식, ...(d.품번 ? { 품번: d.품번 } : {}), ...(d.품명 ? { 품명: d.품명 } : {}), ...(d.메모 ? { 메모: d.메모 } : {}), ...(d.주요치수 ? { 주요치수: d.주요치수, 치수확인: d.치수확인 } : {}), 위치: d.위치,
+      // 카일님이 확인한 주요 치수는 본문 맨 앞에 정답으로 적어, 판독 본문의 잘못 읽힌 숫자보다 먼저 보이게 한다
+      내용: (d.주요치수 && d.치수확인 === "카일님 확인" ? "★ 카일님이 확인한 주요 치수(정답, 아래 본문과 다르면 이 값): " + d.주요치수.join(" / ") + "\n" : "") + d.본문 })) : "(관련 문서 조각을 찾지 못함)") : "(문서는 조회하지 않음)",
     프로필: await getProfile(),
   };
   const ans = extractJson(await callClaude(sys, JSON.stringify(payload), 1800));
@@ -508,7 +512,8 @@ async function answer(q: string, plan: any, history: any[]) {
   const used = docs.filter((d) => dkeys.indexOf(d.key) >= 0);
   const links = await docLinks(used.map((d) => d.파일ID));
   const docEvidence = used.map((d) => ({ 파일ID: d.파일ID, 파일명: d.파일명, 형식: d.형식, 품번: d.품번, 품명: d.품명, 메모: d.메모, 위치: d.위치, 쪽: Number((/p\.(\d+)/.exec(d.위치) || [])[1]) || 1,
-    링크: links[d.파일ID] || "", 발췌: d.본문.replace(/^\[(도면|사진)\]\s*/, "").replace(/\s+/g, " ").slice(0, 180) }));
+    링크: links[d.파일ID] || "", 발췌: d.본문.replace(/^\[(도면|사진)\]\s*/, "").replace(/\s+/g, " ").slice(0, 180),
+    ...(d.주요치수 ? { 주요치수: d.주요치수, 치수확인: d.치수확인 } : {}) }));
 
   await run(db.from("chat_log").insert({ at: nowStr(), question: q, plan, speech: ans.음성 || "",
     note: "기록 " + (result.stats ? result.stats.건수 : 0) + " / 문서 " + docs.length + " / " + Math.round((Date.now() - t0) / 100) / 10 + "초" }));
@@ -616,6 +621,8 @@ async function actUploadUrl(req: any) {
   if (part) row.part_no = part;
   if (product) row.product = product;
   if (memo) row.memo = memo;
+  const dims = dimsList(req.dims);                     // 올릴 때 카일님이 적은 주요 치수 = 확인한 값 (Lobby 판독이 덮어쓰지 않는다)
+  if (dims.length) { row.dims = dims.join("\n"); row.dims_ok = nowStr(); }
   await memoSafe(run(db.from("docs").insert(row)));
   return { id, uploadUrl: data.signedUrl, kind };
 }
@@ -644,24 +651,70 @@ async function memoSafe<T>(p: Promise<T>) {
 async function actIndexDoc(req: any) {
   const doc = (await run<any[]>(db.from("docs").select("*").eq("id", String(req.id))))[0];
   if (!doc) throw new Error("문서를 찾지 못했습니다.");
-  const status = await indexDoc(doc);
+  // 이미 읽어 둔 PDF를 다시 읽어 달라는 것('도면에서 읽어 오기')이면 짐작하지 않고 도면 그림으로 읽는다
+  const forced = !!req.asDrawing || (doc.kind === "PDF" && !!doc.read_at);
+  // 도면은 표제란·주요 치수만 먼저 빨리 읽어 바로 돌려주고, 도면 전체 판독은 응답 뒤에 이어서 한다
+  // (한 번에 다 읽으면 서버 제한 시간 150초를 넘겨 저장 전에 끊긴다)
+  const quick = await indexDrawingQuick(doc, forced);
+  if (quick) {
+    if (quick === "완료") inBackground(indexDoc(doc, true, true));
+    return { status: quick, ...(await actDocs()) };
+  }
+  const status = await indexDoc(doc, forced);
   return { status, ...(await actDocs()) };
 }
 
-/** 파일 하나를 읽어 조각으로 저장하고 상태를 돌려준다 */
-async function indexDoc(doc: any) {
+/** 응답을 보낸 뒤에도 서버가 하던 일을 마치게 한다 (Supabase EdgeRuntime.waitUntil, 없으면 그냥 이어서 실행) */
+function inBackground(p: Promise<unknown>) {
+  const q = p.catch((e) => console.error("뒤에서 읽기 실패:", e && e.message || e));
+  try { (globalThis as any).EdgeRuntime?.waitUntil?.(q); } catch (_e) { /* 없으면 그냥 둔다 */ }
+}
+
+/** 도면 PDF면 표제란·주요 치수만 빨리 읽어 저장하고 상태를 돌려준다. 도면이 아니면 "" */
+async function indexDrawingQuick(doc: any, forced: boolean) {
+  if (doc.kind !== "PDF") return "";
+  const { data: blob, error } = await db.storage.from(CONFIG.BUCKET).download(doc.path);
+  if (error || !blob) return "";                  // 아래 indexDoc가 알아듣기 쉬운 실패로 남긴다
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  if (bytes.length > CONFIG.PDF_AI_MAX_MB * 1024 * 1024) return "";
+  let text: Seg[] = [];
+  try { text = await pdfSegments(bytes); } catch (_e) { text = []; }
+  if (!forced && !isDrawing([doc.name, doc.part_no, doc.product, doc.memo].filter(Boolean).join(" "), text)) return "";
+  const content = [
+    { type: "document", source: { type: "base64", media_type: "application/pdf", data: encodeBase64(bytes) } },
+    { type: "text", text: DRAWING_QUICK },
+  ];
+  let quick = "", err = "";
+  try { quick = (await readClaude("너는 도면 판독 도구다. 보이는 것만 정확히 적는다.", content, 2000)).text.trim(); }
+  catch (e: any) { err = String(e && e.message || e).slice(0, 60); }
+  // 빠른 판독 결과를 맨 앞에, 뽑은 글자를 뒤에 둔다 → 도면 전체 판독이 끊겨도 치수 질문에 답할 수 있다
+  const segs: Seg[] = [...(quick ? [{ loc: "p.1", text: "[도면] " + quick }] : []), ...text];
+  const status = quick ? "완료" : segs.length ? "글자만 읽음(도면 치수 판독 실패: " + (err || "판독 결과 없음") + ")" : "실패: 도면 판독 실패(" + (err || "판독 결과 없음") + ")";
+  await saveRead(doc, segs, status, true);
+  return status;
+}
+
+/** 파일 하나를 읽어 조각으로 저장하고 상태를 돌려준다. later=도면 전체 판독(빠른 판독 뒤): 그림으로 못 읽었으면 앞서 저장한 것을 그대로 둔다 */
+async function indexDoc(doc: any, asDrawing = false, later = false) {
   let segs: Seg[] = [], status = "완료";
   if (doc.kind === "미지원") return doc.status;
   try {
     const { data: blob, error } = await db.storage.from(CONFIG.BUCKET).download(doc.path);
     if (error || !blob) throw new Error("파일을 아직 받지 못했습니다. 다시 올려 주세요");
     const bytes = new Uint8Array(await blob.arrayBuffer());
-    const r = await extractSegments(bytes, doc.kind, doc.name, [doc.part_no, doc.product, doc.memo].filter(Boolean).join(" "));
+    const r = await extractSegments(bytes, doc.kind, doc.name, [doc.part_no, doc.product, doc.memo].filter(Boolean).join(" "), asDrawing);
     segs = r.segs;
     if (!segs.some((s) => s.text.trim())) status = "글자 없음";
     else if (r.partial) status = "일부만 읽음(문서가 길어 앞부분만 읽었습니다. 나눠서 올려 주세요)";
+    else if (r.note) status = r.note;            // 도면을 그림으로 못 읽음 → 카드에 보이고 '다시 읽기' 대상이 된다
   } catch (e: any) { status = "실패: " + String(e && e.message || e).slice(0, 80); }
+  if (later && (status !== "완료" || !segs.some((x) => x.text.startsWith("[도면]")))) return status;
+  await saveRead(doc, segs, status, !later);   // 주요 치수는 빠른 판독 값을 그대로 둔다
+  return status;
+}
 
+/** 읽은 조각을 저장하고, 비어 있는 품번·품명과 (확인 전) 주요 치수를 채운다 */
+async function saveRead(doc: any, segs: Seg[], status: string, setDims: boolean) {
   await run(db.from("doc_chunks").delete().eq("doc_id", doc.id));
   const chunks = chunkSegments(segs);
   for (let i = 0; i < chunks.length; i += 200) {
@@ -670,17 +723,17 @@ async function indexDoc(doc: any) {
   await run(db.from("docs").update({ chunks: chunks.length, read_at: nowStr(), status }).eq("id", doc.id));
   // 비워 둔 품번·품명은 도면 표제란이나 승인원에 적힌 값으로 채운다 (표 업데이트 전이면 건너뜀)
   if (segs.length && (!doc.part_no || !doc.product)) {
-    const m = metaFromText(segs), patch: any = {};
-    if (!doc.part_no && m.part) patch.part_no = m.part;
-    if (!doc.product && m.product) patch.product = m.product;
-    if (Object.keys(patch).length) await run(db.from("docs").update(patch).eq("id", doc.id)).catch(() => {});
+    const m = metaFromText(segs);
+    // 빈 칸만 채운다 (판독 도중 카일님이 적은 값은 그대로)
+    if (!doc.part_no && m.part) await run(db.from("docs").update({ part_no: m.part }).eq("id", doc.id).eq("part_no", "")).catch(() => {});
+    if (!doc.product && m.product) await run(db.from("docs").update({ product: m.product }).eq("id", doc.id).eq("product", "")).catch(() => {});
   }
   // 도면이면 주요 치수(전장·전폭·전고)를 읽은 값으로 채워 둔다 → 화면에서 카일님이 확인·수정 (이미 확인한 치수는 덮어쓰지 않는다)
-  if (!doc.dims_ok && segs.some((x) => x.text.startsWith("[도면]"))) {
+  if (setDims && segs.some((x) => x.text.startsWith("[도면]"))) {
     const dims = dimsFromText(segs);
-    if (dims.length) await run(db.from("docs").update({ dims: dims.join("\n"), dims_ok: "" }).eq("id", doc.id)).catch(() => {});
+    // dims_ok가 빈 것만 바꾼다 → 판독 도중 카일님이 확인·저장한 치수는 덮어쓰지 않는다
+    if (dims.length) await run(db.from("docs").update({ dims: dims.join("\n") }).eq("id", doc.id).eq("dims_ok", "")).catch(() => {});
   }
-  return status;
 }
 
 /** 도면 판독 결과의 "■ 주요 치수" 부분 → ["전장: 358.10 (±0.2)", "전폭: 258.55 (±0.15)", …] */
@@ -708,7 +761,7 @@ function metaFromText(segs: Seg[]) {
 type Seg = { loc: string; text: string };
 
 /** 파일 → [{loc, text}] 조각 전 단계 */
-async function extractSegments(bytes: Uint8Array, kind: string, name: string, memo = ""): Promise<{ segs: Seg[]; partial?: boolean }> {
+async function extractSegments(bytes: Uint8Array, kind: string, name: string, memo = "", asDrawing = false): Promise<{ segs: Seg[]; partial?: boolean; note?: string }> {
   switch (kind) {
     case "텍스트": return { segs: [{ loc: "", text: new TextDecoder("utf-8").decode(bytes) }] };
     case "워드": return { segs: docxSegments(bytes) };
@@ -720,10 +773,12 @@ async function extractSegments(bytes: Uint8Array, kind: string, name: string, me
       try { segs = await pdfSegments(bytes); } catch (_e) { segs = []; }
       const len = segs.reduce((s, x) => s + x.text.replace(/\s/g, "").length, 0);
       // 도면은 글자가 들어 있어도 숫자만 흩어져 나와 어느 부분 치수인지 알 수 없으므로, Claude가 그림으로 보고 읽는다
-      if (isDrawing(name + " " + memo, segs) && bytes.length <= CONFIG.PDF_AI_MAX_MB * 1024 * 1024) {
-        try { const d = await pdfSegmentsByClaude(bytes, true); if (d.segs.some((x) => x.text.trim())) return d; } catch (_e) { /* 실패하면 뽑은 글자로 */ }
+      let drawingErr = "";
+      if ((asDrawing || isDrawing(name + " " + memo, segs)) && bytes.length <= CONFIG.PDF_AI_MAX_MB * 1024 * 1024) {   // '도면에서 읽어 오기'는 짐작 없이 그림으로
+        try { const d = await pdfSegmentsByClaude(bytes, true); if (d.segs.some((x) => x.text.trim())) return d; drawingErr = "판독 결과 없음"; }
+        catch (e: any) { drawingErr = String(e && e.message || e).slice(0, 60); }   // 실패하면 뽑은 글자로 두되, 상태에 남겨 다시 읽게 한다
       }
-      if (len >= 200) return { segs };
+      if (len >= 200) return { segs, ...(drawingErr ? { note: "글자만 읽음(도면 그림 판독 실패: " + drawingErr + ")" } : {}) };
       return await pdfSegmentsByClaude(bytes);   // 스캔 PDF 등 글자를 못 뽑은 경우
     }
   }
@@ -778,25 +833,40 @@ async function pdfSegments(bytes: Uint8Array): Promise<Seg[]> {
 const TRANSCRIBE = '글자를 빠짐없이 옮겨 적어라. 표는 한 행을 "칸 | 칸 | 칸" 한 줄로 적는다. 도면의 치수·공차·주석·표제란도 적는다. 요약·설명 없이 원문만 출력.';
 
 // 도면 판독: 숫자만 옮기면 어느 부분 치수인지 알 수 없으므로 "부분 - 치수: 값 공차" 형태로 정리하게 한다
-const DRAWING = [
+const DRAWING_PARTS = [
   "이 도면을 보고 아래 순서로 빠짐없이 적어라. 보이는 값만 적고 추정하지 않는다. 읽기 어려운 값은 (판독 불가)로 적는다.",
   "■ 표제란: 도번, 품번, 품명, 금형번호, 재질·적용 원료(그레이드 포함), 색상, 척도, 단위, 리비전, 작성·승인일 등 보이는 항목을 \"항목: 값\"으로 한 줄씩",
-  "■ 주요 치수: 제품 외형 전체 치수를 한 줄에 하나씩 \"전장: 358.10 (±0.2)\", \"전폭: 258.55 (±0.15)\", \"전고: 45.0 (+0.1/-0.05)\" 형식으로 (전장=가장 긴 외형 치수, 전폭=그와 직각인 외형 치수, 전고=높이·두께). 공차가 따로 없으면 일반공차를 괄호에, 그것도 없으면 괄호 없이. 도면에 없는 항목은 적지 않는다",
-  "■ 치수: 한 줄에 하나씩 \"뷰·부분 - 치수 이름: 값 공차\" (예: \"정면도 - 전장: 142.0 ±0.05 mm\", \"측면도 - 체결 구멍 지름: Ø3.2 +0.1/0\"). Ø·R·C·±·기하공차 기호와 단위는 그대로",
+  "■ 주요 치수: 제품 외형 전체 치수를 한 줄에 하나씩 \"가로전장: <값> (공차: <공차>)\", \"세로전장: <값> (공차: <공차>)\" 형식으로 (가로전장=정면도에서 가로 방향 외형 전체 길이, 세로전장=정면도에서 세로 방향 외형 전체 길이. 외형 두께·높이 치수가 따로 있으면 \"높이: <값> (공차: <공차>)\"도). 제품 일부(구멍·리브·보스 등)의 치수가 아니라 외곽 끝에서 끝까지의 치수를 고른다. 도면에 적힌 숫자를 소수점 자리까지 그대로 옮기고 반올림하지 않는다. 공차가 따로 없으면 일반공차를 괄호에, 그것도 없으면 괄호 없이. 도면에서 확실히 읽히지 않는 항목은 적지 않는다",
+  "■ 치수: 한 줄에 하나씩 \"뷰·부분 - 치수 이름: 값 공차\" (형식 예: \"정면도 - 전장: <값> ±<공차> mm\", \"측면도 - 체결 구멍 지름: Ø<값> +<위>/<아래>\"). 숫자는 도면에 적힌 그대로, Ø·R·C·±·기하공차 기호와 단위도 그대로",
   "■ 일반공차·주석·표면처리·검사 기준: 원문 그대로",
   "■ 형상: 어떤 부품인지, 형태와 주요 특징을 두세 문장으로",
   "■ 그 밖의 글자: 위에 들어가지 않은 표·글자를 원문 그대로",
-].join("\n");
+];
+const DRAWING = DRAWING_PARTS.join("\n");
+// 빠른 판독: 표제란과 주요 치수만 (서버 제한 시간 안에 끝나도록 답을 짧게)
+const DRAWING_QUICK = [...DRAWING_PARTS.slice(0, 3), "이 두 항목(■ 표제란, ■ 주요 치수)만 적고 다른 설명은 붙이지 않는다. 여러 쪽이면 첫 번째 도면 기준으로 적는다."].join("\n");
 const DRAWING_NAME = /(도면|drawing|dwg|dxf|assy|조립도|부품도|외형도|제작도|금형도)/i;
-/** 도면인지: 파일 이름·메모에 도면이라는 말이 있거나, 뽑은 글자 대부분이 치수처럼 생긴 숫자인 짧은 PDF */
+// 이름에 문서 종류가 적힌 PDF는 짧아도 일반 문서로 본다
+const DOC_TYPE_NAME = /(승인원|표준서|기준서|성적서|사양서|명세서|견적|목록|매뉴얼|설명서|\bbom\b|\blist\b|spec|manual|catalog|카탈로그|report|보고서)/i;
+/** 도면인지: 이름에 도면이라는 말이 있거나, 쪽수·글자가 적거나, 치수 숫자·표제란 낱말이 많은 PDF */
 function isDrawing(label: string, segs: Seg[]) {
   if (DRAWING_NAME.test(label)) return true;
-  if (!segs.length || segs.length > 30) return false;
-  const words = segs.map((x) => x.text).join(" ").split(/\s+/).filter(Boolean);
-  if (words.length < 15 || words.length / segs.length > 400) return false;     // 한 쪽에 글이 빽빽하면 일반 문서
-  const dims = words.filter((w) => /^[Ø⌀φRCM±+\-]?\d+([.,]\d+)?(°|mm)?$/i.test(w) || /^[±+\-]\d/.test(w)).length;
-  return dims / words.length >= 0.35;
+  const docType = DOC_TYPE_NAME.test(label);
+  if (!segs.length) return !docType;              // 글자가 전혀 없는 PDF(글자를 선으로 바꾼 도면·스캔)
+  if (segs.length > 30) return false;
+  const text = segs.map((x) => x.text).join(" "), perPage = text.replace(/\s/g, "").length / segs.length;
+  // 쪽수가 적고(5쪽 이하) 쪽마다 글자가 적으면 도면 (CAD 도면은 글자가 한 자씩 띄어져 뽑혀도 글자 수 자체는 적다)
+  if (!docType && segs.length <= 5 && perPage < 1500) return true;
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length >= 15 && perPage <= 2500) {
+    const dims = words.filter((w) => /^[Ø⌀φRCM±+\-]?\d+([.,]\d+)?(°|mm)?$/i.test(w) || /^[±+\-]\d/.test(w)).length;
+    if (dims / words.length >= 0.35) return true;
+  }
+  // CAD에서 내보낸 도면 PDF는 표제란 글자가 함께 뽑혀 숫자 비율이 낮다 → 표제란 낱말이 여러 종류 보이면 도면
+  return segs.length <= 6 && TITLE_BLOCK.filter((re) => re.test(text)).length >= 3;
 }
+const TITLE_BLOCK = [/SCALE|척\s*도/i, /DWG\.?\s*NO|DRAWING\s*NO|도\s*번/i, /DRAWN|CHECKED|APPROVED|DESIGNED|설\s*계|검\s*도/i, /THIRD\s*ANGLE|FIRST\s*ANGLE|3\s*각법|제\s*3\s*각/i,
+  /TOLERANCE|일반\s*공차|공\s*차/i, /UNIT\s*[:：]?\s*mm|단\s*위\s*[:：]?\s*mm/i, /MATERIAL|재\s*질/i, /\bREV(ISION)?\b|개\s*정/i, /SHEET|SIZE\s*A[0-4]/i];
 
 async function pdfSegmentsByClaude(bytes: Uint8Array, drawing = false) {
   if (bytes.length > CONFIG.PDF_AI_MAX_MB * 1024 * 1024) throw new Error("글자를 뽑을 수 없는 PDF(스캔본)인데 " + CONFIG.PDF_AI_MAX_MB + "MB를 넘어 읽지 못했습니다");
@@ -804,7 +874,8 @@ async function pdfSegmentsByClaude(bytes: Uint8Array, drawing = false) {
     { type: "document", source: { type: "base64", media_type: "application/pdf", data: encodeBase64(bytes) } },
     { type: "text", text: drawing ? DRAWING + "\n각 페이지 시작에 [p.번호]를 붙인다." : "이 PDF의 " + TRANSCRIBE + " 각 페이지 시작에 [p.번호]를 붙인다." },
   ];
-  const r = await callClaudeFull("너는 문서 전사 도구다. 원문을 정확히 옮겨 적는다.", content, 16000);
+  const sys = "너는 문서 전사 도구다. 원문을 정확히 옮겨 적는다.";
+  const r = drawing ? await readClaude(sys, content, 16000) : await callClaudeFull(sys, content, 16000);   // 도면은 작은 치수 글자까지 고해상도로
   const parts = r.text.split(/\[p\.(\d+)\]/);
   const segs: Seg[] = [];
   const tag = drawing ? "[도면] " : "";             // "도면"으로 물어도 찾을 수 있게 앞에 붙인다
@@ -826,7 +897,7 @@ async function imageSegmentsByClaude(bytes: Uint8Array, name: string) {
       "제품사진·기타면 이어서 \"설명:\" 줄에 무엇인지, 형태·색상·재질감·크기감·특징을 3~5문장으로 적고, 보이는 품번·각인·라벨 글자가 있으면 \"글자:\" 줄에 그대로 적는다.",
     ].join("\n") },
   ];
-  const r = await callClaudeFull("너는 문서·도면·제품사진 판독 도구다. 보이는 것만 정확히 적는다.", content, 8000);
+  const r = await readClaude("너는 문서·도면·제품사진 판독 도구다. 보이는 것만 정확히 적는다.", content, 8000);
   return { segs: [{ loc: "사진", text: "[사진] " + r.text }], partial: r.cut };
 }
 
@@ -868,14 +939,46 @@ const likeEsc = (s: string) => s.replace(/[\\%_]/g, (c) => "\\" + c);
 /** 품번 검색 패턴: 하이픈·띄어쓰기 유무가 달라도 찾는다 ("CR747"·"cr 747" → CR-747) */
 const partPat = (k: string) => "%" + k.split(/[-\s_]+/).filter(Boolean).map(likeEsc).join("%").replace(/([A-Za-z])(\d)/g, "$1%$2") + "%";
 
+/* 부품 위치 낱말: 같은 제품의 REAR·FRONT처럼 짝이 있는 도면을 섞지 않도록, 물은 쪽과 반대쪽을 구분한다 */
+const SIDES: [RegExp, RegExp][] = [
+  [/(\brear\b|리어|후면|\bback\b)/i, /(\bfront\b|프론트|전면)/i],
+  [/(\bleft\b|\blh\b|좌측|왼쪽)/i, /(\bright\b|\brh\b|우측|오른쪽)/i],
+  [/(\bupper\b|\btop\b|상부|윗)/i, /(\blower\b|\bbottom\b|하부|아랫)/i],
+];
+// 한글·영문 부품 이름을 같은 말로 본다 (카일님이 "리어"라고 말해도 REAR로 적힌 도면을 찾게)
+const PART_WORDS: [string, string][] = [["리어", "rear"], ["프론트", "front"], ["케이스", "case"], ["커버", "cover"], ["브라켓", "bracket"], ["브래킷", "bracket"],
+  ["스탠드", "stand"], ["베이스", "base"], ["프레임", "frame"], ["상부", "upper"], ["하부", "lower"], ["도면", "drawing"]];
+const looseKey = (s: string) => String(s || "").toLowerCase().replace(/[\s\-_.()[\]·,/]+/g, "");
+const sideText = (s: string) => String(s || "").replace(/[_\-.()[\]·,/]+/g, " ");
+
 /** 문서 조각 검색: 키워드가 많이 맞는 조각을 골라 Claude에게 넘긴다 */
 async function searchDocs(keywords: string[], files: string[], q: string) {
   let kws = (keywords || []).map((k) => String(k).trim()).filter((k) => k.length >= 2);
   if (!kws.length) kws = String(q).split(/[\s,.?!]+/).filter((k) => k.length >= 2).slice(0, 6);
-  kws = kws.filter((k, i) => kws.indexOf(k) === i).slice(0, 6);
+  PART_WORDS.forEach(([ko, en]) => { if (kws.some((k) => k.indexOf(ko) >= 0) || String(q).indexOf(ko) >= 0) kws.push(en); if (kws.some((k) => k.toLowerCase() === en)) kws.push(ko); });
+  kws = kws.filter((k, i) => kws.findIndex((x) => x.toLowerCase() === k.toLowerCase()) === i).slice(0, 12);
 
-  const want = (files || []).map(String).filter(Boolean);
+  // 물은 쪽(리어·프론트 등): 질문과 검색어에서 찾고, 반대쪽만 적힌 문서는 크게 뒤로 보낸다
+  const asked = sideText(q + " " + kws.join(" "));
+  const sideOf = (text: string) => SIDES.map(([a, b]) => { const t = sideText(text); const ha = a.test(t), hb = b.test(t); return ha && !hb ? 1 : hb && !ha ? -1 : 0; });
+  const askedSide = sideOf(asked);
+  const sideFit = (identity: string) => sideOf(identity).reduce((s, v, i) => s + (askedSide[i] && v ? (v === askedSide[i] ? 2 : -4) : 0), 0);
+
+  // 지목한 파일이 물은 쪽과 반대면(예: 리어를 물었는데 FRONT 파일) 지목을 무시한다
+  const want = (files || []).map(String).filter(Boolean).filter((w) => sideFit(w) >= 0);
   const fileOk = (name: string) => !want.length || want.some((w) => name.indexOf(w) >= 0 || w.indexOf(name) >= 0);
+
+  // 문서마다 이름·품번·품명·메모가 검색어와 얼마나 맞는지 (하이픈·띄어쓰기 무시: "APEXA G" = "APEXA-G")
+  const all = await docRows("id,name,part_no,product,memo,dims_ok", (x) => x.limit(1000)).catch(() => []);
+  const ident: Record<string, number> = {}, otherSide = new Set<string>();
+  all.forEach((d) => {
+    const idText = [d.name, d.part_no, d.product, d.memo].filter(Boolean).join(" "), key = looseKey(idText);
+    if (sideOf(idText).some((v, i) => askedSide[i] && v === -askedSide[i])) otherSide.add(String(d.id));   // 리어를 물었는데 FRONT 도면 → 아예 빼기
+    let s = sideFit(idText);
+    kws.forEach((k) => { const kk = looseKey(k); if (kk.length >= 2 && key.indexOf(kk) >= 0) s += kk.length >= 4 ? 1.5 : 1; });
+    if (s > 0 && d.dims_ok) s += 1.5;          // 같은 도면을 여러 번 올렸으면 카일님이 치수를 확인한 쪽을 앞으로
+    ident[d.id] = s;
+  });
 
   const score: Record<string, number> = {};
   for (const k of kws) {
@@ -885,18 +988,19 @@ async function searchDocs(keywords: string[], files: string[], q: string) {
     hits.filter((h) => fileOk(h.name)).forEach((h) => {
       score[h.id] = (score[h.id] || 0) + w + (String(h.name).toLowerCase().indexOf(k.toLowerCase()) >= 0 ? 0.5 : 0);
     });
-    // 파일 이름·품번·제품명(품명)·메모가 맞는 문서는 본문에 그 말이 없어도 찾는다 (예: "하부 케이스 사진" → IMG_2481.jpg, 품명 리모컨 하부 케이스, 메모 제품사진)
-    const byName = await docRows("id,name", (q) => q.ilike("name", pat).limit(50));
-    const byPart = await docRows("id,name,part_no", (q) => q.ilike("part_no", partPat(k)).limit(50)).catch(() => []);
-    const byProduct = await docRows("id,name,product", (q) => q.ilike("product", pat).limit(50)).catch(() => []);
-    const byMemo = await docRows("id,name,memo", (q) => q.ilike("memo", pat).limit(50)).catch(() => []);
-    const docIds = [...byName, ...byPart, ...byProduct, ...byMemo].filter((d) => fileOk(d.name)).map((d) => String(d.id)).filter((id, i, a) => a.indexOf(id) === i);
-    if (docIds.length) {
-      const heads = await run<any[]>(db.from("doc_chunks").select("id").in("doc_id", docIds).lte("seq", 2).limit(100));
-      heads.forEach((h) => { score[h.id] = (score[h.id] || 0) + 1; });
-    }
   }
-  let ids = Object.keys(score).sort((a, b) => score[b] - score[a]).slice(0, CONFIG.MAX_DOC_CHUNKS_TO_AI).map(Number);
+  // 이름·품번·품명·메모가 맞는 문서는 본문에 그 말이 없어도 찾는다 (예: "하부 케이스 사진" → IMG_2481.jpg, 품명 리모컨 하부 케이스, 메모 제품사진).
+  // 문서가 맞은 정도를 그 문서의 모든 조각에 더하고(앞 두 조각은 더 크게), 반대쪽 부품 도면은 여기서 크게 깎인다
+  const docIds = all.filter((d) => fileOk(d.name) && (ident[d.id] || 0) !== 0).map((d) => String(d.id));
+  if (docIds.length) {
+    const parts = await run<any[]>(db.from("doc_chunks").select("id,doc_id,seq").in("doc_id", docIds).limit(2000));
+    parts.forEach((c) => { const s = ident[c.doc_id] || 0; if (s > 0 || score[c.id] !== undefined) score[c.id] = (score[c.id] || 0) + (c.seq <= 2 ? s : s / 2); });
+  }
+  if (otherSide.size) {
+    const drop = await run<any[]>(db.from("doc_chunks").select("id").in("doc_id", [...otherSide]).limit(2000));
+    drop.forEach((c) => { delete score[c.id]; });
+  }
+  let ids = Object.keys(score).filter((id) => score[id] > 0).sort((a, b) => score[b] - score[a]).slice(0, CONFIG.MAX_DOC_CHUNKS_TO_AI).map(Number);
   if (!ids.length && want.length) {                   // 지목한 문서가 있으면 앞부분이라도
     const head = await run<any[]>(db.from("doc_chunks").select("id,name").lte("seq", CONFIG.MAX_DOC_CHUNKS_TO_AI).order("doc_id").order("seq").limit(1000));
     ids = head.filter((h) => fileOk(h.name)).slice(0, CONFIG.MAX_DOC_CHUNKS_TO_AI).map((h) => h.id);
@@ -942,11 +1046,17 @@ async function actDocs() {
 async function actReindex() {
   const started = Date.now();
   const rows = await run<any[]>(db.from("docs").select("*").neq("kind", "미지원"));
+  // 글자만 뽑아 두었던 도면 PDF(예전 판별 기준으로는 도면으로 못 알아본 CAD 도면)는 그림으로 다시 읽는다
+  const heads = await run<any[]>(db.from("doc_chunks").select("doc_id,body").eq("seq", 1));
+  const head: Record<string, string> = {}; heads.forEach((h) => { head[h.doc_id] = String(h.body || ""); });
+  const unreadDrawing = (d: any) => d.kind === "PDF" && !d.dims_ok && head[d.id] !== undefined && !head[d.id].startsWith("[도면]")   // 치수를 이미 확인한 도면은 다시 읽지 않는다(비용)
+    && isDrawing([d.name, d.memo].filter(Boolean).join(" "), [{ loc: "", text: head[d.id] }]);
   let done = 0, errors = 0, pending = 0;
   for (const d of rows) {
-    if (d.status === "완료" || d.status.indexOf("일부만") === 0) continue;
-    if (Date.now() - started > 100000) { pending++; continue; }
-    const st = await indexDoc(d);
+    const failed = !(d.status === "완료" || d.status.indexOf("일부만") === 0);
+    if (!failed && !unreadDrawing(d)) continue;
+    if (Date.now() - started > 50000) { pending++; continue; }   // 도면 한 장 판독에 수십 초가 걸려 서버 제한(150초) 안에서 멈춘다
+    const st = (await indexDrawingQuick(d, unreadDrawing(d))) || await indexDoc(d);   // 도면은 표제란·주요 치수만 빨리
     if (st === "완료") done++; else errors++;
   }
   return { done, errors, pending, ...(await actDocs()) };
@@ -1622,19 +1732,26 @@ function mask(s: any) {
 }
 
 /** user는 문자열 또는 content 배열(PDF·사진 등). cut은 답이 길어 중간에 잘렸는지 여부 */
-async function callClaudeFull(system: string, user: any, maxTokens: number) {
+async function callClaudeFull(system: string, user: any, maxTokens: number, model = CONFIG.MODEL, effort = "") {
   if (!Deno.env.get("ANTHROPIC_API_KEY")) throw new Error("서버에 ANTHROPIC_API_KEY가 등록되어 있지 않습니다.");
   let res;
   try {
-    res = await anthropic.messages.create({ model: CONFIG.MODEL, max_tokens: maxTokens || 1500, system, messages: [{ role: "user", content: user }] });
+    const params: any = { model, max_tokens: maxTokens || 1500, system, messages: [{ role: "user" as const, content: user }] };
+    if (effort && /opus-5|sonnet-5|fable/.test(model)) params.output_config = { effort };   // 판독은 깊이 생각할 일이 적다 → 낮춰서 빨리 끝낸다
+    // 긴 답(도면 판독 등)은 SDK가 스트리밍 없이는 보내지 않으므로 스트리밍으로 받아 끝까지 모은다
+    res = params.max_tokens > 16000 ? await anthropic.messages.stream(params).finalMessage() : await anthropic.messages.create(params);
   } catch (e: any) {
     if (e instanceof Anthropic.APIError) throw new Error("Claude API 오류(" + e.status + "): " + e.message);
     throw e;
   }
-  await recordUsage(CONFIG.MODEL, res.usage);
+  await recordUsage(model, res.usage);
+  // 판독 모델이 안전 검사로 답을 거절하면 기본 모델로 한 번 더 읽는다
+  if (res.stop_reason === "refusal" && model !== CONFIG.MODEL) return await callClaudeFull(system, user, maxTokens, CONFIG.MODEL);
   const text = res.content.map((c: any) => c.type === "text" ? c.text : "").join("");
   return { text, cut: res.stop_reason === "max_tokens" };
 }
+/** 도면·사진·스캔 PDF 판독: 고해상도 판독 모델로 읽는다 (생각하는 데 쓰는 몫까지 넉넉히) */
+const readClaude = (system: string, user: any, maxTokens: number, effort = "low") => callClaudeFull(system, user, maxTokens + 8000, CONFIG.READ_MODEL, effort);
 async function callClaude(system: string, user: any, maxTokens: number) {
   return (await callClaudeFull(system, user, maxTokens)).text;
 }
