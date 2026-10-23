@@ -477,7 +477,7 @@ body.speaking.beat .fx .ln{animation-name:flashB}
         <p>승인원·도면·작업표준서·제품사진을 올려 두면 Lobby가 바로 읽어 두고, 물으면 치수·적용 원료를 찾아 답하고 도면·사진을 보여 줍니다.</p>
         <div class="kinds"><span class="chip d">PDF</span><span class="chip d">워드(docx)</span><span class="chip d">엑셀</span><span class="chip d">파워포인트(pptx)</span><span class="chip d">사진(도면·제품)</span><span class="chip d">텍스트</span></div>
         <p>파일을 고르면 올리기 전에 파일마다 <b>품번</b>(예: CR-747)·<b>제품명/품명</b>(예: 리모컨 하부 케이스)를 적을 수 있습니다. Lobby가 파일 이름을 보고 미리 채워 두니 확인만 해 주세요. 파일 이름이 IMG_1234.jpg여도 이 말로 물으면 찾아 드립니다.
-          도면은 올린 뒤 Lobby가 읽은 <b>주요 치수</b>(예: 전장: 358.10 (±0.2))를 보여 드리니, 맞으면 그대로·틀리면 고쳐서 저장해 주세요. 확인한 치수는 물을 때 정답으로 씁니다.</p>
+          도면은 올린 뒤 Lobby가 읽은 <b>주요 치수</b>(예: 가로전장: 363.95 (공차: ±0.15))를 보여 드리니, 맞으면 그대로·틀리면 고쳐서 저장해 주세요. 확인한 치수는 물을 때 정답으로 씁니다.</p>
         <input type="file" id="docFile" multiple hidden accept=".pdf,.docx,.xlsx,.xls,.xlsm,.pptx,.txt,.csv,.md,image/jpeg,image/png,image/gif,image/webp">
         <div class="btns">
           <button class="btn" id="btnReindex">문서·도면 다시 읽기</button>
@@ -1389,7 +1389,7 @@ async function shrinkImage(f) {
 }
 /* 주요 치수: 도면을 읽을 때 Lobby가 전장·전폭 등을 채우고, 카일님이 확인·수정한다. 확인한 값은 물을 때 정답으로 쓴다 */
 const dimsOf = d => Array.isArray(d.주요치수) ? d.주요치수 : [];
-const DIM_HINTS = ['예) 전장: 358.10 (±0.2)', '예) 전폭: 258.55 (±0.15)', '예) 전고: 45.0 (±0.1)'];
+const DIM_HINTS = ['예) 가로전장: 363.95 (공차: ±0.15)', '예) 세로전장: 299.95 (공차: ±0.15)', '예) 높이: 45.0 (공차: ±0.1)'];
 function dimsEditHTML(d) {
   const rows = S.dimsDraft || [], has = dimsOf(d).length;
   const note = has && !d.치수확인 ? 'Lobby가 도면에서 읽은 값입니다. 맞으면 그대로, 틀린 곳만 고쳐서 저장해 주세요'
@@ -1516,7 +1516,7 @@ function renderUploadPlan() {
       <div class="form">
         <label class="fld"><span>품번</span><input data-up-part="${i}" class="${g(it, 'part')}" maxlength="40" autocomplete="off" value="${esc(it.part)}" placeholder="예) CR-747"></label>
         <label class="fld"><span>제품명·품명</span><input data-up-product="${i}" class="${g(it, 'product')}" maxlength="60" autocomplete="off" value="${esc(it.product)}" placeholder="예) 리모컨 하부 케이스"></label>
-        <div class="fld wide up-dims-note">📐 <b>주요 치수</b> (전장·전폭 …)는 올린 뒤 Lobby가 도면에서 읽어 채워 드립니다. 확인 창이 열리면 맞는지 보고 저장해 주세요.</div>
+        <div class="fld wide up-dims-note">📐 <b>주요 치수</b> (가로전장·세로전장)는 올린 뒤 Lobby가 도면에서 읽어 채워 드립니다. 확인 창이 열리면 맞는지 보고 저장해 주세요.</div>
       </div></div>`).join('')}
     <div class="btns"><button class="btn" id="upCancel">취소</button><button class="btn pri" id="upGo">올리기 (${list.length}개)</button></div>`;
   box.hidden = false;
@@ -2454,7 +2454,7 @@ const Demo = (() => {
         const kind = { pdf: 'PDF', docx: '워드', xlsx: '엑셀', xls: '엑셀', pptx: '파워포인트', txt: '텍스트', csv: '텍스트', md: '텍스트', jpg: '이미지', jpeg: '이미지', png: '이미지' }[ext] || '미지원';
         const dwg = /도면/.test(d.name + (lastMeta.메모 || ''));    // 데모: 도면이면 읽은 척 주요 치수를 채워 확인 창을 보여 준다
         docs.push({ ...lastMeta, 파일ID: d.id, 파일명: d.name, 형식: kind, 크기: d.size, 수정일시: now(), 조각수: kind === '미지원' ? 0 : 3, 읽은일시: now(), 상태: kind === '미지원' ? '미지원(' + ext + ')' : '완료', 링크: '',
-          주요치수: dwg ? ['전장: 358.10 (±0.2)', '전폭: 258.55 (±0.15)'] : [], 치수확인: '' });
+          주요치수: dwg ? ['가로전장: 363.95 (공차: ±0.15)', '세로전장: 299.95 (공차: ±0.15)'] : [], 치수확인: '' });
         return { status: kind === '미지원' ? '미지원(' + ext + ')' : '완료', docs };
       }
       if (action === 'docMemo') {
