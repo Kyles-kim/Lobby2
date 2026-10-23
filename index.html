@@ -1428,7 +1428,7 @@ function delDim(k) { collectDims(); S.dimsDraft.splice(k, 1); if (!S.dimsDraft.l
 async function readDims(id, btn) {
   btn.disabled = true; btn.textContent = 'Lobby가 읽는 중…';
   try {
-    const r = await api('indexDoc', { id });
+    const r = await api('indexDoc', { id, asDrawing: true });   // 이 버튼은 짐작 없이 도면 그림으로 읽는다
     S.docs = r.docs || S.docs;
     const d = S.docs.find(x => x.파일ID === id);
     if (d && dimsOf(d).length) { S.dimsDraft = [...dimsOf(d)]; toast('읽은 주요 치수를 확인해 주세요'); }

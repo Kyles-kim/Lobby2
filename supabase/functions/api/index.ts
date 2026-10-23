@@ -649,19 +649,19 @@ async function memoSafe<T>(p: Promise<T>) {
 async function actIndexDoc(req: any) {
   const doc = (await run<any[]>(db.from("docs").select("*").eq("id", String(req.id))))[0];
   if (!doc) throw new Error("문서를 찾지 못했습니다.");
-  const status = await indexDoc(doc);
+  const status = await indexDoc(doc, !!req.asDrawing);
   return { status, ...(await actDocs()) };
 }
 
 /** 파일 하나를 읽어 조각으로 저장하고 상태를 돌려준다 */
-async function indexDoc(doc: any) {
+async function indexDoc(doc: any, asDrawing = false) {
   let segs: Seg[] = [], status = "완료";
   if (doc.kind === "미지원") return doc.status;
   try {
     const { data: blob, error } = await db.storage.from(CONFIG.BUCKET).download(doc.path);
     if (error || !blob) throw new Error("파일을 아직 받지 못했습니다. 다시 올려 주세요");
     const bytes = new Uint8Array(await blob.arrayBuffer());
-    const r = await extractSegments(bytes, doc.kind, doc.name, [doc.part_no, doc.product, doc.memo].filter(Boolean).join(" "));
+    const r = await extractSegments(bytes, doc.kind, doc.name, [doc.part_no, doc.product, doc.memo].filter(Boolean).join(" "), asDrawing);
     segs = r.segs;
     if (!segs.some((s) => s.text.trim())) status = "글자 없음";
     else if (r.partial) status = "일부만 읽음(문서가 길어 앞부분만 읽었습니다. 나눠서 올려 주세요)";
@@ -714,7 +714,7 @@ function metaFromText(segs: Seg[]) {
 type Seg = { loc: string; text: string };
 
 /** 파일 → [{loc, text}] 조각 전 단계 */
-async function extractSegments(bytes: Uint8Array, kind: string, name: string, memo = ""): Promise<{ segs: Seg[]; partial?: boolean; note?: string }> {
+async function extractSegments(bytes: Uint8Array, kind: string, name: string, memo = "", asDrawing = false): Promise<{ segs: Seg[]; partial?: boolean; note?: string }> {
   switch (kind) {
     case "텍스트": return { segs: [{ loc: "", text: new TextDecoder("utf-8").decode(bytes) }] };
     case "워드": return { segs: docxSegments(bytes) };
@@ -727,7 +727,7 @@ async function extractSegments(bytes: Uint8Array, kind: string, name: string, me
       const len = segs.reduce((s, x) => s + x.text.replace(/\s/g, "").length, 0);
       // 도면은 글자가 들어 있어도 숫자만 흩어져 나와 어느 부분 치수인지 알 수 없으므로, Claude가 그림으로 보고 읽는다
       let drawingErr = "";
-      if (isDrawing(name + " " + memo, segs) && bytes.length <= CONFIG.PDF_AI_MAX_MB * 1024 * 1024) {
+      if ((asDrawing || isDrawing(name + " " + memo, segs)) && bytes.length <= CONFIG.PDF_AI_MAX_MB * 1024 * 1024) {   // '도면에서 읽어 오기'는 짐작 없이 그림으로
         try { const d = await pdfSegmentsByClaude(bytes, true); if (d.segs.some((x) => x.text.trim())) return d; drawingErr = "판독 결과 없음"; }
         catch (e: any) { drawingErr = String(e && e.message || e).slice(0, 60); }   // 실패하면 뽑은 글자로 두되, 상태에 남겨 다시 읽게 한다
       }
@@ -807,7 +807,9 @@ function isDrawing(label: string, segs: Seg[]) {
   // CAD에서 내보낸 도면 PDF는 표제란 글자가 함께 뽑혀 숫자 비율이 낮다 → 표제란 낱말이 여러 종류 보이면 도면
   if (segs.length > 6) return false;
   const text = segs.map((x) => x.text).join(" ");
-  return TITLE_BLOCK.filter((re) => re.test(text)).length >= 3;
+  if (TITLE_BLOCK.filter((re) => re.test(text)).length >= 3) return true;
+  // 쪽수가 적고(5쪽 이하) 쪽마다 글자가 적은 PDF도 도면으로 본다 (글자를 선으로 바꿔 내보낸 도면은 뽑히는 글자가 거의 없다)
+  return segs.length <= 5 && text.replace(/\s/g, "").length / segs.length < 1500;
 }
 const TITLE_BLOCK = [/SCALE|척\s*도/i, /DWG\.?\s*NO|DRAWING\s*NO|도\s*번/i, /DRAWN|CHECKED|APPROVED|DESIGNED|설\s*계|검\s*도/i, /THIRD\s*ANGLE|FIRST\s*ANGLE|3\s*각법|제\s*3\s*각/i,
   /TOLERANCE|일반\s*공차|공\s*차/i, /UNIT\s*[:：]?\s*mm|단\s*위\s*[:：]?\s*mm/i, /MATERIAL|재\s*질/i, /\bREV(ISION)?\b|개\s*정/i, /SHEET|SIZE\s*A[0-4]/i];
