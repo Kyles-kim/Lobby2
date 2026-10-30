@@ -19,7 +19,9 @@ import { decodeBase64, encodeBase64 } from "jsr:@std/encoding/base64";
 
 // ───────────────────────── 설정 ─────────────────────────
 const CONFIG = {
-  MODEL: Deno.env.get("LOBBY_MODEL") || "claude-sonnet-4-5",
+  MODEL: Deno.env.get("LOBBY_MODEL") || "claude-sonnet-5-5",   // 답변·기록 정리용 (Sonnet 4.5보다 똑똑하고 단가는 3분의 2)
+  // 말씀이 기록인지 질문인지 가르고 조회계획을 짜는 첫 단계용: 단순 분류라 가장 싼 모델로 충분하다 (Sonnet 4.5의 약 30분의 1 가격)
+  PLAN_MODEL: Deno.env.get("LOBBY_PLAN_MODEL") || "claude-haiku-5-5",
   // 도면·사진·스캔 PDF 판독용: 고해상도로 보는 모델(긴 변 2576px까지)이라 작은 치수 글자를 더 정확히 읽는다. 올릴 때 한 번만 쓴다
   READ_MODEL: Deno.env.get("LOBBY_READ_MODEL") || "claude-opus-5-5",
   TRASH_DAYS: 30,               // 삭제 후 복구 가능 기간(일)
@@ -27,14 +29,14 @@ const CONFIG = {
   LEARN_EXAMPLES: 6,            // 새 입력 정리 시 참고용으로 보여 줄 비슷한 과거 기록 수
   KRW_PER_USD: 1400,            // 환율(원/달러). 사용 요금을 원화로 보여 줄 때 쓰는 값이라 대략 맞춰 두면 됩니다
   PRICE_PER_MTOK: {             // 모델별 [입력, 출력] 단가(달러 / 100만 토큰). 모델을 바꾸면 여기도 확인해 주세요
-    "claude-sonnet-4-5": [3, 15], "claude-haiku-4-5": [1, 5], "claude-sonnet-5-5": [2, 10], "claude-opus-5-5": [4, 20],
+    "claude-sonnet-4-5": [3, 15], "claude-haiku-4-5": [1, 5], "claude-sonnet-5-5": [2, 10], "claude-opus-5-5": [4, 20], "claude-haiku-5-5": [0.1, 0.5],
   } as Record<string, number[]>,
   MONTH_BUDGET_KRW: 0,          // 월 예산(원). 0이면 끔. 정해 두면 80%·100%에서 화면의 금액 색이 바뀝니다
-  MAX_ROWS_TO_AI: 150,          // 답변 작성 시 Claude에게 넘길 최대 기록 수
+  MAX_ROWS_TO_AI: 100,          // 답변 작성 시 Claude에게 넘길 최대 기록 수
   WEATHER: { name: "서울", lat: 37.5665, lon: 126.978 },   // 브리핑 날씨 지역 (위도·경도를 바꾸면 다른 지역)
   CHUNK_SIZE: 1500,             // 문서를 나누는 조각 크기(글자)
   CHUNK_OVERLAP: 200,
-  MAX_DOC_CHUNKS_TO_AI: 8,      // 답변에 넘길 문서 조각 수
+  MAX_DOC_CHUNKS_TO_AI: 5,      // 답변에 넘길 문서 조각 수 (많을수록 정확하지만 질문마다 요금이 는다)
   UPLOAD_MAX_MB: 50,            // 올릴 수 있는 파일 크기
   PDF_AI_MAX_MB: 20,            // 글자를 못 뽑은 PDF(스캔본·도면)를 Claude로 읽을 때 최대 크기
   IMAGE_MAX_MB: 5,              // 사진 글자 인식 최대 크기
@@ -276,8 +278,7 @@ async function actParse(req: any) {
   const cats = await getCategories();
 
   const system = [
-    "너는 카일님의 개인 비서 Lobby다. 카일님의 음성 발화를 기록용 JSON으로 정리한다.",
-    dateContext(),
+    "너는 카일님의 개인 비서 Lobby다. 카일님의 음성 발화를 기록용 JSON으로 정리한다. 오늘 날짜·현재 시각과 참고 예시는 메시지 앞부분에, 정리할 말은 \"말씀:\" 뒤에 있다.",
     "유형(8개 중 하나): " + TYPES.join(", "),
     "  일상=있었던 일, 지출=돈을 쓴 기록(금액 필수), 일정=앞으로의 개인 약속, 업무일정=회사 약속·마감,",
     "  정보=기억해 둘 사실, 특이점=평소와 다른 일·주의할 일, 아이디어=떠오른 생각,",
@@ -297,12 +298,13 @@ async function actParse(req: any) {
     "- 기존 분류에 맞지 않으면 새 분류명을 제안하고 새분류=true, 분류설명에 한 줄 설명. 억지로 새 분류를 만들지 말 것.",
     '- 유형이 정보이고 "항목=값"으로 정리 가능하면 프로필항목/프로필값을 채운다(예: "차 타이어 규격" / "235/55R19").',
     '- 카드번호·계좌번호·비밀번호는 절대 옮겨 적지 말고 "***"로 가린다.',
-    await learnedHints(text),
     "반드시 JSON만 출력:",
     '{"items":[{"유형":"","분류":"","새분류":false,"분류설명":"","대상일":"","대상시각":"","제목":"","내용":"","금액":null,"인물":[],"장소":"","태그":[],"상태":"","알림":null,"프로필항목":"","프로필값":"","확인필요":""}]}',
   ].join("\n");
 
-  const out = extractJson(await callClaude(system, text, 2000));
+  // 날짜와 비슷한 과거 기록 예시는 말마다 달라 지시문(캐시) 밖에 둔다
+  const user = [dateContext(), await learnedHints(text), "말씀: " + text].filter(Boolean).join("\n");
+  const out = extractJson(await callClaude(system, user, 2000));
   const lead = alarmVal(req.alarmLead) || String(CONFIG.ALARM_DEFAULT_MIN);
   const items = (out.items || []).map((it: any) => normalizeItem(it, cats, lead, text));
   return { items, raw: text };
@@ -430,8 +432,7 @@ async function makePlan(text: string, history: any[]) {
   const cats = (await getCategories()).map((c) => c.name);
   const docNames = await getDocNames();
   const sys = [
-    "너는 카일님의 개인 비서 Lobby의 두뇌다. 카일님의 말을 보고 의도를 판단하고 조회계획을 JSON으로 만든다.",
-    dateContext(),
+    "너는 카일님의 개인 비서 Lobby의 두뇌다. 카일님의 말을 보고 의도를 판단하고 조회계획을 JSON으로 만든다. 오늘 날짜는 메시지 첫 줄에 있다.",
     "의도(하나):",
     '  기록 = 있었던 일·지출·앞으로의 일정·기억할 정보·특이점·아이디어를 남기려는 말 ("어제 오일 갈았어 8만원", "다음주 화요일 미라셀 미팅"). 그 시각에 카일님께 알려 달라는 말("내일 3시에 약 먹으라고 알려 줘", "회의 30분 전에 알려 줘", "6시에 깨워 줘")도 기록이다',
     '  질문 = 기록·회사 문서·일반 지식에 대한 물음, 요약·정리·계획 요청, 문서를 보여 달라·읽어 달라는 말 ("이번 주 일정 뭐야?", "CR-747 승인원 검사 항목 알려줘", "작업표준서 보여 줘")',
@@ -457,8 +458,10 @@ async function makePlan(text: string, history: any[]) {
     "반드시 JSON만 출력:",
     '{"의도":"질문","출처":"기록","종류":"","기간":{"시작":"","끝":""},"유형":[],"분류":[],"상태":[],"검색어":[],"문서검색어":[],"문서파일":[],"계산":"없음","그룹":"없음","정렬":"최신","개수":30,"예약":null}',
   ].join("\n");
-  const user = JSON.stringify({ 최근대화: history || [], 말씀: text });
-  const plan = extractJson(await callClaude(sys, user, 700));
+  const user = dateContext() + "\n" + JSON.stringify({ 최근대화: history || [], 말씀: text });
+  let plan;
+  try { plan = extractJson((await callClaudeFull(sys, user, 700, CONFIG.PLAN_MODEL)).text); }
+  catch (_e) { plan = extractJson(await callClaude(sys, user, 700)); }   // 싼 모델이 실패하거나 형식을 어기면 기본 모델로 한 번 더
   plan.의도 = ["기록", "질문", "예약", "대화", "브리핑"].indexOf(plan.의도) >= 0 ? plan.의도 : "질문";
   plan.출처 = ["기록", "문서", "둘다", "없음"].indexOf(plan.출처) >= 0 ? plan.출처 : "기록";
   if (plan.의도 === "대화" || plan.의도 === "브리핑") plan.출처 = "없음";
@@ -475,8 +478,7 @@ async function answer(q: string, plan: any, history: any[]) {
   const docs = useDoc ? await searchDocs(kws, plan.문서파일 || [], q) : [];
 
   const sys = [
-    "너는 카일님의 개인 비서 Lobby다. 아래 자료만 근거로 답한다: [조회결과](카일님 기록), [문서발췌](회사 문서), [프로필].",
-    dateContext(),
+    "너는 카일님의 개인 비서 Lobby다. 아래 자료만 근거로 답한다: [조회결과](카일님 기록), [문서발췌](회사 문서), [프로필]. 오늘 날짜는 메시지 첫 줄에 있다.",
     "규칙:",
     '- [조회결과].통계.일치기록있음이 true이면 기록이 있는 것이다. 절대 "기록이 없다"고 하지 말고 건수·날짜를 근거로 답한다. 조회방식에 "풀어서"가 있으면 조건을 완화해 찾은 것이므로 기록의 제목·내용을 직접 읽고 질문과 관련 있는 것만 세어 답한다(예: 루틴운동=운동·헬스·러닝·스트레칭 등 같은 뜻의 기록).',
     "- 참고기록_검색어불일치는 검색어와 글자는 달라도 같은 뜻일 수 있는 기록이다(기간 밖 기록 포함). 횟수·개수 질문이면 이 목록도 읽고 질문과 같은 활동이면 포함해 직접 센 뒤, 어떤 기록들을 셌는지 상세에 날짜와 함께 적는다.",
@@ -487,6 +489,7 @@ async function answer(q: string, plan: any, history: any[]) {
     "- 가로전장·세로전장·전장·전폭·높이(가로·세로·길이·폭) 같은 주요 치수를 물으면(\"전장\"만 물으면 가로전장과 세로전장을 함께 알려 준다), 내용이 \"★ 카일님이 확인한 주요 치수\"로 시작하는 문서발췌의 그 값을 글자 그대로(소수점·공차 포함) 답한다. 판독 본문의 숫자가 달라도 무시한다. ★ 값이 없을 때만 주요치수, 그다음 판독 본문을 쓴다.",
     "- 그 밖의 치수는 [도면] 판독의 \"뷰·부분 - 치수 이름: 값 공차\"를 근거로, 어느 부분의 치수인지 함께 말한다. 적용 원료·재질·금형번호는 표제란이나 승인원의 값을 그대로 쓴다.",
     "- 물은 치수·금형번호가 문서발췌에 없으면 비슷한 숫자로 짐작하지 말고 \"도면에서 ○○을(를) 찾지 못했습니다\"라고 말한다. 같은 제품의 다른 부품(예: FRONT와 REAR) 도면 값을 섞지 않는다.",
+    "- 위치에 \"표제란\"이 있는 [도면] 발췌는 표제란·주요 치수만 읽어 둔 것이다. 그 도면의 다른 치수를 찾지 못했으면 \"문서 탭에서 그 도면의 '자세히 읽기'를 누르시면 도면 전체를 읽어 둡니다\"라고 덧붙인다.",
     "- 출처가 없음(인사·잡담·일반 상식)이면 알고 있는 지식으로 짧고 따뜻하게 답한다.",
     '- 숫자(합계·건수·평균)는 [조회결과].통계 값을 그대로 쓴다. 직접 다시 계산하지 않는다(단, 조회방식에 "풀어서"가 있으면 기록을 직접 읽고 관련 건만 세어 건수를 말한다).',
     "- 규격·치수·공차·검사기준·수량 같은 문서 수치는 단위까지 원문 그대로 옮긴다. 추정·반올림 금지.",
@@ -504,7 +507,7 @@ async function answer(q: string, plan: any, history: any[]) {
       내용: (d.주요치수 && d.치수확인 === "카일님 확인" ? "★ 카일님이 확인한 주요 치수(정답, 아래 본문과 다르면 이 값): " + d.주요치수.join(" / ") + "\n" : "") + d.본문 })) : "(관련 문서 조각을 찾지 못함)") : "(문서는 조회하지 않음)",
     프로필: await getProfile(),
   };
-  const ans = extractJson(await callClaude(sys, JSON.stringify(payload), 1800));
+  const ans = extractJson(await callClaude(sys, dateContext() + "\n" + JSON.stringify(payload), 1800));
 
   const evid = (ans.근거ID || []).map(String);
   const evidence = result.rows.filter((r: any) => evid.indexOf(r.ID) >= 0).slice(0, 10);
@@ -652,14 +655,16 @@ async function actIndexDoc(req: any) {
   const doc = (await run<any[]>(db.from("docs").select("*").eq("id", String(req.id))))[0];
   if (!doc) throw new Error("문서를 찾지 못했습니다.");
   // 이미 읽어 둔 PDF를 다시 읽어 달라는 것('도면에서 읽어 오기')이면 짐작하지 않고 도면 그림으로 읽는다
-  const forced = !!req.asDrawing || (doc.kind === "PDF" && !!doc.read_at);
-  // 도면은 표제란·주요 치수만 먼저 빨리 읽어 바로 돌려주고, 도면 전체 판독은 응답 뒤에 이어서 한다
-  // (한 번에 다 읽으면 서버 제한 시간 150초를 넘겨 저장 전에 끊긴다)
-  const quick = await indexDrawingQuick(doc, forced);
-  if (quick) {
-    if (quick === "완료") inBackground(indexDoc(doc, true, true));
-    return { status: quick, ...(await actDocs()) };
+  // '자세히 읽기': 도면 전체 판독. 같은 도면을 판독 모델로 한 번 더 읽어 비용이 크므로 카일님이 누를 때만 한다.
+  // 오래 걸려(한 번에 다 읽으면 서버 제한 시간 150초를 넘긴다) 응답 뒤에 이어서 읽고, 실패하면 앞서 읽은 것을 그대로 둔다
+  if (req.full) {
+    inBackground(indexDoc(doc, true, true));
+    return { status: "자세히 읽는 중", ...(await actDocs()) };
   }
+  const forced = !!req.asDrawing || (doc.kind === "PDF" && !!doc.read_at);
+  // 도면은 표제란·주요 치수만 빨리 읽어 둔다 (도면 전체는 '자세히 읽기'로)
+  const quick = await indexDrawingQuick(doc, forced);
+  if (quick) return { status: quick, ...(await actDocs()) };
   const status = await indexDoc(doc, forced);
   return { status, ...(await actDocs()) };
 }
@@ -688,7 +693,8 @@ async function indexDrawingQuick(doc: any, forced: boolean) {
   try { quick = (await readClaude("너는 도면 판독 도구다. 보이는 것만 정확히 적는다.", content, 2000)).text.trim(); }
   catch (e: any) { err = String(e && e.message || e).slice(0, 60); }
   // 빠른 판독 결과를 맨 앞에, 뽑은 글자를 뒤에 둔다 → 도면 전체 판독이 끊겨도 치수 질문에 답할 수 있다
-  const segs: Seg[] = [...(quick ? [{ loc: "p.1", text: "[도면] " + quick }] : []), ...text];
+  // 위치의 "표제란"은 전체 판독 전이라는 표시('자세히 읽기' 버튼이 이것을 보고 나온다)
+  const segs: Seg[] = [...(quick ? [{ loc: "p.1 · 표제란", text: "[도면] " + quick }] : []), ...text];
   const status = quick ? "완료" : segs.length ? "글자만 읽음(도면 치수 판독 실패: " + (err || "판독 결과 없음") + ")" : "실패: 도면 판독 실패(" + (err || "판독 결과 없음") + ")";
   await saveRead(doc, segs, status, true);
   return status;
@@ -924,7 +930,8 @@ function chunkSegments(segs: Seg[]) {
 
 async function getDocNames() {
   const rows = await docRows("name,part_no,product,memo", (q) => q.order("name").limit(120));
-  return rows.map((r) => { const tag = [r.part_no, r.product, r.memo].filter(Boolean).join(" · "); return String(r.name) + (tag ? " (" + tag + ")" : ""); }).filter(Boolean);
+  // 질문마다 이 목록이 통째로 Claude에게 가므로 메모는 앞부분만 붙인다
+  return rows.map((r) => { const tag = [r.part_no, r.product, String(r.memo || "").slice(0, 20)].filter(Boolean).join(" · "); return String(r.name) + (tag ? " (" + tag + ")" : ""); }).filter(Boolean);
 }
 /** docs 표 읽기. 메모 칸이 아직 없으면(표 업데이트 전) 메모 없이 읽는다 */
 async function docRows(cols: string, more: (q: any) => any = (q) => q): Promise<any[]> {
@@ -1034,10 +1041,12 @@ async function docLinks(ids: string[]) {
 async function actDocs() {
   const rows = await run<any[]>(db.from("docs").select("*").order("name"));
   const links = await docLinks(rows.filter((r) => r.status !== "올리는 중").map((r) => r.id));
+  // 표제란·주요 치수만 읽어 둔 도면 → 화면에 '자세히 읽기' 버튼
+  const brief = new Set((await run<any[]>(db.from("doc_chunks").select("doc_id").like("loc", "%표제란%").limit(2000))).map((c) => String(c.doc_id)));
   return {
     docs: rows.map((r) => ({ 파일ID: r.id, 파일명: r.name, 형식: r.kind, 크기: r.size, 수정일시: r.uploaded_at, 조각수: r.chunks || 0,
       읽은일시: r.read_at, 상태: r.status, 링크: links[r.id] || "", 품번: r.part_no || "", 품명: r.product || "", 메모: r.memo || "",
-      주요치수: dimsList(r.dims), 치수확인: r.dims_ok || "" })),
+      주요치수: dimsList(r.dims), 치수확인: r.dims_ok || "", 요약판독: brief.has(String(r.id)) })),
     maxMb: CONFIG.UPLOAD_MAX_MB,
   };
 }
@@ -1662,7 +1671,8 @@ async function recordUsage(model: string, usage: any) {
   if (!usage) return;
   try {
     const day = today();
-    const inTok = Number(usage.input_tokens || 0) + Number(usage.cache_creation_input_tokens || 0) + Number(usage.cache_read_input_tokens || 0);
+    // 캐시에 저장한 입력은 1.25배, 캐시에서 읽은 입력은 0.1배 요금이라 요금 기준 입력 토큰으로 바꿔 쌓는다
+    const inTok = Math.round(Number(usage.input_tokens || 0) + 1.25 * Number(usage.cache_creation_input_tokens || 0) + 0.1 * Number(usage.cache_read_input_tokens || 0));
     const outTok = Number(usage.output_tokens || 0);
     const cur = (await run<any[]>(db.from("usage").select("*").eq("day", day).eq("model", model)))[0] || { calls: 0, in_tokens: 0, out_tokens: 0 };
     const inAll = Number(cur.in_tokens) + inTok, outAll = Number(cur.out_tokens) + outTok;
@@ -1732,12 +1742,17 @@ function mask(s: any) {
 }
 
 /** user는 문자열 또는 content 배열(PDF·사진 등). cut은 답이 길어 중간에 잘렸는지 여부 */
-async function callClaudeFull(system: string, user: any, maxTokens: number, model = CONFIG.MODEL, effort = "") {
+async function callClaudeFull(system: string, user: any, maxTokens: number, model = CONFIG.MODEL, effort = "low", think = false) {
   if (!Deno.env.get("ANTHROPIC_API_KEY")) throw new Error("서버에 ANTHROPIC_API_KEY가 등록되어 있지 않습니다.");
   let res;
   try {
-    const params: any = { model, max_tokens: maxTokens || 1500, system, messages: [{ role: "user" as const, content: user }] };
-    if (effort && /opus-5|sonnet-5|fable/.test(model)) params.output_config = { effort };   // 판독은 깊이 생각할 일이 적다 → 낮춰서 빨리 끝낸다
+    // 지시문(system)은 매번 같으므로 Claude 쪽에 5분 동안 저장(캐시)해 두면, 이어서 묻는 동안 그 부분은 10분의 1 가격이다.
+    // 그래서 날짜·시각처럼 매번 바뀌는 내용은 지시문이 아니라 user 쪽에 넣는다 (512토큰보다 짧은 지시문은 저장되지 않고 요금도 그대로)
+    const params: any = { model, max_tokens: maxTokens || 1500, system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
+      messages: [{ role: "user" as const, content: user }] };
+    if (effort && /opus-5|sonnet-5|haiku-5|fable/.test(model)) params.output_config = { effort };   // 정리·답변·판독은 깊이 생각할 일이 적다 → 낮춰서 싸고 빠르게
+    const off = think ? null : noThinking(model);
+    if (off) params.thinking = off;
     // 긴 답(도면 판독 등)은 SDK가 스트리밍 없이는 보내지 않으므로 스트리밍으로 받아 끝까지 모은다
     res = params.max_tokens > 16000 ? await anthropic.messages.stream(params).finalMessage() : await anthropic.messages.create(params);
   } catch (e: any) {
@@ -1750,8 +1765,14 @@ async function callClaudeFull(system: string, user: any, maxTokens: number, mode
   const text = res.content.map((c: any) => c.type === "text" ? c.text : "").join("");
   return { text, cut: res.stop_reason === "max_tokens" };
 }
+/** 생각(thinking)을 끄는 설정. 생각한 글자도 출력 요금으로 청구되므로, 정리·답변처럼 생각할 일이 적은 곳은 끈다. 끌 수 없는 모델은 null(effort로만 줄인다) */
+function noThinking(model: string) {
+  if (/sonnet-5-5/.test(model)) return { type: "between_tools" };   // Sonnet 5.5에서 가장 낮은 생각 설정(도구를 쓰지 않으면 생각하지 않음)
+  if (/haiku-5/.test(model)) return { type: "disabled" };
+  return null;
+}
 /** 도면·사진·스캔 PDF 판독: 고해상도 판독 모델로 읽는다 (생각하는 데 쓰는 몫까지 넉넉히) */
-const readClaude = (system: string, user: any, maxTokens: number, effort = "low") => callClaudeFull(system, user, maxTokens + 8000, CONFIG.READ_MODEL, effort);
+const readClaude = (system: string, user: any, maxTokens: number, effort = "low") => callClaudeFull(system, user, maxTokens + 8000, CONFIG.READ_MODEL, effort, true);
 async function callClaude(system: string, user: any, maxTokens: number) {
   return (await callClaudeFull(system, user, maxTokens)).text;
 }

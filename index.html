@@ -631,7 +631,7 @@ const S = {
   types: ['일상','지출','일정','업무일정','정보','특이점','아이디어','할일'],
   states: ['정상','예정','완료','취소'],
   categories: [], editPeriod: 'week', showDeleted: false, openId: null, confirmDel: null, list: [],
-  cards: {}, tasksPending: {}, seq: 0, history: [],
+  cards: {}, tasksPending: {}, seq: 0, history: [], fullReading: {},
   docs: [], reports: [], tasks: [], openRep: null, editTask: null, latest: null,
 };
 const isDemo = () => S.url === 'demo';
@@ -1353,6 +1353,7 @@ function applyDocs(r) {
         <button class="btn sm ghost" data-del-doc="${i}">삭제</button>
         <button class="btn sm ghost" data-memo-doc="${i}">${dimsOf(d).length && !d.치수확인 ? '치수 확인' : d.품번 || d.품명 || dimsOf(d).length ? '품번·치수 수정' : '품번·품명·치수'}</button>
         ${d.링크 ? `<a class="btn sm" href="${esc(d.링크)}" target="_blank" rel="noopener">열기</a>` : ''}
+        ${d.요약판독 ? `<button class="btn sm" data-full-read="${esc(d.파일ID)}"${S.fullReading[d.파일ID] ? ' disabled>자세히 읽는 중…' : '>자세히 읽기'}</button>` : ''}
         ${d.조각수 > 0 ? `<button class="btn sm" data-read-doc="${i}">${S.reading === d.파일ID ? '읽기 멈춤' : '읽어 주기'}</button><button class="btn sm pri" data-ask-doc="${i}">이 문서에 묻기</button>` : ''}
       </div>
     </div>`).join('');
@@ -1440,6 +1441,16 @@ async function readDims(id, btn) {
     else toast('도면에서 주요 치수를 찾지 못했습니다. 직접 적어 주세요', true);
     redrawDocEdit();
   } catch (e) { toast(e.message, true); btn.disabled = false; btn.textContent = '도면에서 읽어 오기'; }
+}
+/** 도면 자세히 읽기: 올릴 때는 표제란·주요 치수만 읽어 두고(비용 절약), 다른 부분 치수까지 필요할 때 도면 전체를 읽는다 */
+async function fullRead(id, btn) {
+  btn.disabled = true; btn.textContent = '자세히 읽는 중…';
+  try {
+    await api('indexDoc', { id, full: true });   // 서버가 응답 뒤에 이어서 읽는다(1~2분)
+    S.fullReading[id] = 1;
+    toast('도면 전체를 읽고 있습니다. 1~2분 뒤에 반영됩니다');
+    setTimeout(() => { delete S.fullReading[id]; loadDocs(); }, 120000);
+  } catch (e) { toast(e.message, true); btn.disabled = false; btn.textContent = '자세히 읽기'; }
 }
 async function saveDocMemo(i, btn) {
   const d = S.docs[i]; if (!d) return;
@@ -2251,6 +2262,7 @@ document.addEventListener('click', e => {
   if (d.dimAdd != null) return void addDim();
   if (d.dimDel != null) return void delDim(Number(d.dimDel));
   if (d.dimRead != null) return void readDims(d.dimRead, t);
+  if (d.fullRead != null) return void fullRead(d.fullRead, t);
   if (d.askDoc != null) {
     const doc = S.docs[Number(d.askDoc)]; if (!doc) return;
     show('talk'); $('#txtTalk').value = `‘${doc.파일명}’에서 `; autoGrow($('#txtTalk')); $('#txtTalk').focus(); return;
@@ -2469,6 +2481,7 @@ const Demo = (() => {
       if (action === 'reindex') { await wait(900); return { done: 0, pending: 0, errors: 0, docs }; }
       if (action === 'uploadUrl') { lastMeta = { 품번: String(d.part || '').toUpperCase(), 품명: d.product || '', 메모: d.memo || '', ...(d.dims && d.dims.length ? { 주요치수: d.dims, 치수확인: now() } : {}) }; return { id: 'F' + Date.now(), uploadUrl: 'demo' }; }
       if (action === 'indexDoc') {
+        if (d.full) { const x = docs.find(v => v.파일ID === d.id); if (x) x.요약판독 = false; return { status: '자세히 읽는 중', docs }; }
         const ext = (d.name || '').split('.').pop().toLowerCase();
         const kind = { pdf: 'PDF', docx: '워드', xlsx: '엑셀', xls: '엑셀', pptx: '파워포인트', txt: '텍스트', csv: '텍스트', md: '텍스트', jpg: '이미지', jpeg: '이미지', png: '이미지' }[ext] || '미지원';
         const dwg = /도면/.test(d.name + (lastMeta.메모 || ''));    // 데모: 도면이면 읽은 척 주요 치수를 채워 확인 창을 보여 준다
